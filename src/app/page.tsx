@@ -1,103 +1,204 @@
-import Image from "next/image";
+'use client';
+
+import React, { useState, useEffect, useRef } from 'react';
+import Message from '../components/Message';
+import TypingIndicator from '../components/TypingIndicator';
+
+interface MessageType {
+  id: string;
+  sender: string;
+  content: string;
+  created_at: string;
+}
 
 export default function Home() {
+  const [messages, setMessages] = useState<MessageType[]>([]);
+  const [inputMessage, setInputMessage] = useState('');
+  const [currentTurn, setCurrentTurn] = useState<string | null>(null);
+  const [isAssistantTyping, setIsAssistantTyping] = useState(false);
+  const [user, setUser] = useState<'M' | 'E'>('M');
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  
+  // Fetch messages and turn status on component mount
+  useEffect(() => {
+    const fetchInitialData = async () => {
+      try {
+        // Fetch messages
+        const messagesRes = await fetch('/api/messages');
+        const messagesData = await messagesRes.json();
+        setMessages(messagesData);
+        
+        // Fetch turn status
+        const turnRes = await fetch('/api/turn');
+        const turnData = await turnRes.json();
+        setCurrentTurn(turnData.current_turn);
+        setIsAssistantTyping(turnData.assistant_active);
+      } catch (error) {
+        console.error('Error fetching initial data:', error);
+      }
+    };
+    
+    fetchInitialData();
+    
+    // Poll for updates every 2 seconds
+    const interval = setInterval(async () => {
+      try {
+        const turnRes = await fetch('/api/turn');
+        const turnData = await turnRes.json();
+        
+        // If there's a turn change, refresh messages
+        if (turnData.current_turn !== currentTurn || turnData.assistant_active !== isAssistantTyping) {
+          setCurrentTurn(turnData.current_turn);
+          setIsAssistantTyping(turnData.assistant_active);
+          
+          // If assistant is not typing, fetch new messages
+          if (!turnData.assistant_active) {
+            const messagesRes = await fetch('/api/messages');
+            const messagesData = await messagesRes.json();
+            setMessages(messagesData);
+          }
+        }
+      } catch (error) {
+        console.error('Error polling for updates:', error);
+      }
+    }, 2000);
+    
+    return () => clearInterval(interval);
+  }, [currentTurn, isAssistantTyping]);
+  
+  // Scroll to bottom when messages change
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+  
+  // Handle sending a message
+  const handleSendMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!inputMessage.trim() || currentTurn !== user || isAssistantTyping) return;
+    
+    try {
+      // Send message to API
+      const response = await fetch('/api/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          sender: user,
+          content: inputMessage,
+        }),
+      });
+      
+      const data = await response.json();
+      
+      if (response.ok) {
+        setMessages(data.messages);
+        setCurrentTurn(data.currentTurn);
+        setInputMessage('');
+        setIsAssistantTyping(true);
+      } else {
+        console.error('Error sending message:', data.error);
+      }
+    } catch (error) {
+      console.error('Error sending message:', error);
+    }
+  };
+  
+  // Toggle between users
+  const toggleUser = () => {
+    setUser(prev => prev === 'M' ? 'E' : 'M');
+  };
+  
   return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm/6 text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-[family-name:var(--font-geist-mono)] font-semibold">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
-
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+    <div className="flex flex-col h-screen bg-gray-100">
+      {/* Header */}
+      <header className="bg-white shadow-sm p-4">
+        <div className="max-w-4xl mx-auto flex justify-between items-center">
+          <h1 className="text-xl font-semibold text-gray-800">Komensa Chat</h1>
+          <div className="flex items-center space-x-4">
+            <span className="text-sm text-gray-600">
+              Current Turn: <span className="font-bold">{currentTurn || '...'}</span>
+            </span>
+            <button
+              onClick={toggleUser}
+              className={`px-3 py-1 rounded-full text-white ${
+                user === 'M' ? 'bg-blue-500' : 'bg-purple-500'
+              }`}
+            >
+              You are: {user}
+            </button>
+          </div>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+      </header>
+      
+      {/* Chat Container */}
+      <div className="flex-1 overflow-y-auto p-4">
+        <div className="max-w-4xl mx-auto">
+          {messages.length === 0 ? (
+            <div className="text-center p-8">
+              <p className="text-gray-500">No messages yet. Start the conversation!</p>
+            </div>
+          ) : (
+            messages.map((message) => (
+              <Message
+                key={message.id}
+                sender={message.sender}
+                content={message.content}
+                timestamp={message.created_at}
+              />
+            ))
+          )}
+          
+          {isAssistantTyping && <TypingIndicator isTyping={true} sender="AI" />}
+          
+          {/* For auto-scrolling */}
+          <div ref={messagesEndRef} />
+        </div>
+      </div>
+      
+      {/* Message Input */}
+      <div className="bg-white border-t border-gray-200 p-4">
+        <div className="max-w-4xl mx-auto">
+          <form onSubmit={handleSendMessage} className="flex">
+            <input
+              type="text"
+              value={inputMessage}
+              onChange={(e) => setInputMessage(e.target.value)}
+              placeholder={
+                currentTurn === user 
+                  ? "Type your message..." 
+                  : `Waiting for ${currentTurn} to send a message...`
+              }
+              disabled={currentTurn !== user || isAssistantTyping}
+              className="flex-1 rounded-l-lg border-gray-300 focus:ring-blue-500 focus:border-blue-500"
+            />
+            <button
+              type="submit"
+              disabled={currentTurn !== user || isAssistantTyping || !inputMessage.trim()}
+              className={`px-4 py-2 rounded-r-lg text-white ${
+                currentTurn === user && !isAssistantTyping && inputMessage.trim()
+                  ? user === 'M' ? 'bg-blue-500 hover:bg-blue-600' : 'bg-purple-500 hover:bg-purple-600'
+                  : 'bg-gray-300 cursor-not-allowed'
+              }`}
+            >
+              Send
+            </button>
+          </form>
+          
+          {currentTurn !== user && !isAssistantTyping && (
+            <p className="text-sm text-gray-500 mt-2">
+              Waiting for {currentTurn} to take their turn...
+            </p>
+          )}
+          
+          {isAssistantTyping && (
+            <p className="text-sm text-gray-500 mt-2">
+              AI is thinking and responding...
+            </p>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

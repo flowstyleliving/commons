@@ -1,22 +1,71 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Komensa Chat
 
-## Getting Started
+A simple chat application for two users (M and E) to talk with an AI assistant. Features include:
 
-First, run the development server:
+- Turn-based conversation with coin flip to decide who goes first
+- Typing indicators
+- Persistent chat history using Neon PostgreSQL
+- OpenAI-powered assistant that maintains context
+- Clean, modern UI
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+## Setup
+
+1. Clone the repository
+2. Install dependencies:
+   ```
+   npm install
+   ```
+3. Set up environment variables:
+   Create a `.env` file with the following:
+   ```
+   DATABASE_URL="postgresql://username:password@your-neon-db-url:5432/database?sslmode=require"
+   OPENAI_API_KEY="your-openai-api-key"
+   ```
+
+4. Initialize the database:
+   ```
+   npm run init-db
+   ```
+
+5. Run the development server:
+   ```
+   npm run dev
+   ```
+
+6. Open [http://localhost:3000](http://localhost:3000) with your browser
+
+## Database Schema
+
+The application uses a simple schema with two tables:
+
+```sql
+-- Messages table
+CREATE TABLE messages (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  room_id TEXT NOT NULL,
+  sender TEXT NOT NULL,         -- 'M', 'E', or 'assistant'
+  content TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Current turn tracking
+CREATE TABLE room_state (
+  room_id TEXT PRIMARY KEY,
+  current_turn TEXT NOT NULL,   -- 'M', 'E', or 'assistant'
+  assistant_active BOOLEAN DEFAULT false,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## How It Works
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+1. Upon initialization, the app creates a "main-room" with a random first turn (M or E)
+2. Users can switch between M and E using the toggle button
+3. Only the user whose turn it is can send a message
+4. After a user sends a message, the AI assistant responds
+5. The turn passes to the other user
+6. The conversation continues with context maintained
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
