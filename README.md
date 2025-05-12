@@ -1,119 +1,102 @@
-# Komensa Chat
+# Komensa
 
-A simple chat application for two users (M and E) to talk with an AI assistant. Features include:
+A chat application for two users (M and E) to converse with an AI assistant, built with:
 
-- Turn-based conversation with coin flip to decide who goes first
-- Typing indicators
-- Persistent chat history using Neon PostgreSQL
-- OpenAI-powered assistant that maintains context
-- Clean, modern UI
+- Next.js for the frontend and API routes
+- Neon PostgreSQL for database storage
+- OpenAI API for the assistant
+- Vercel for deployment
+
+## Features
+
+- Beautiful, warm UI with user-specific styling
+- Turn-based conversation system
+- User availability tracking (prevents user conflicts)
+- Typing indicators when the AI is responding
+- Persistent chat history
+- Error handling and fallbacks for database issues
 
 ## Setup
 
-1. Clone the repository
-2. Install dependencies:
+### Prerequisites
+
+- [Node.js](https://nodejs.org/) 18.x or later
+- [Neon PostgreSQL](https://neon.tech/) account
+- [OpenAI API](https://platform.openai.com/) key
+- [Vercel](https://vercel.com/) account (for deployment)
+
+### Local Development
+
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/flowstyleliving/komensa5.git
+   cd komensa5
    ```
+
+2. Install dependencies:
+   ```bash
    npm install
    ```
-3. Set up environment variables:
-   Create a `.env` file with the following:
+
+3. Create a `.env.local` file with your environment variables:
    ```
-   DATABASE_URL="postgresql://username:password@your-neon-db-url:5432/database?sslmode=require"
-   OPENAI_API_KEY="your-openai-api-key"
+   DATABASE_URL=postgresql://username:password@your-neon-db-url/database?sslmode=require
+   OPENAI_API_KEY=your_openai_api_key
    ```
 
-4. Initialize the database:
-   ```
-   npm run init-db
-   ```
-
-5. Run the development server:
-   ```
+4. Run the development server:
+   ```bash
    npm run dev
    ```
 
-6. Open [http://localhost:3000](http://localhost:3000) with your browser
+5. Open [http://localhost:3000](http://localhost:3000) with your browser
 
-## Database Schema
+### Setting up Neon PostgreSQL
 
-The application uses a simple schema with two tables:
+1. Create a Neon account at [neon.tech](https://neon.tech)
+2. Create a new project
+3. Create a database inside your project
+4. Get your connection string from the Neon dashboard
+5. Add the connection string to your `.env.local` file as `DATABASE_URL`
 
-```sql
--- Messages table
-CREATE TABLE messages (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  room_id TEXT NOT NULL,
-  sender TEXT NOT NULL,         -- 'M', 'E', or 'assistant'
-  content TEXT NOT NULL,
-  created_at TIMESTAMPTZ DEFAULT now()
-);
+The database tables will be automatically created when you first run the application.
 
--- Current turn tracking
-CREATE TABLE room_state (
-  room_id TEXT PRIMARY KEY,
-  current_turn TEXT NOT NULL,   -- 'M', 'E', or 'assistant'
-  assistant_active BOOLEAN DEFAULT false,
-  created_at TIMESTAMPTZ DEFAULT now(),
-  updated_at TIMESTAMPTZ DEFAULT now()
-);
-```
+### Deploying to Vercel
+
+1. Push your code to GitHub
+2. Connect your repository to Vercel
+3. Add environment variables in the Vercel dashboard:
+   - `DATABASE_URL`: Your Neon PostgreSQL connection string
+   - `OPENAI_API_KEY`: Your OpenAI API key
+4. Deploy your application
 
 ## How It Works
 
-1. Upon initialization, the app creates a "main-room" with a random first turn (M or E)
-2. Users can switch between M and E using the toggle button
-3. Only the user whose turn it is can send a message
-4. After a user sends a message, the AI assistant responds
-5. The turn passes to the other user
-6. The conversation continues with context maintained
+1. The home page allows users to select either 'M' or 'E' based on availability
+2. Once a user joins, they are taken to the chat page with their selected identity
+3. Users take turns sending messages, with the AI responding after each message
+4. Chat history is persisted across sessions
+5. If the selected user is already active, you'll be redirected back to select another
 
 ## Troubleshooting
 
-### Database Issues
+### Database Connectivity
 
-If you encounter database-related errors or no messages appear:
+If you encounter database connection errors:
 
-1. Make sure your Neon PostgreSQL database is set up correctly
-2. Check your `.env` file contains the correct `DATABASE_URL`
-3. Run the database check script to verify connection and data:
-   ```
-   npm run check-db
-   ```
-4. If issues persist, reinitialize the database:
-   ```
-   npm run init-db
-   ```
+1. Verify your Neon database is active
+2. Check that your `DATABASE_URL` is correct and includes `?sslmode=require`
+3. Visit `/api/db-check` endpoint to see detailed database diagnostics
+4. Visit `/api/init-db` to initialize the database schema if needed
 
-### API Errors
+### OpenAI API Issues
 
-If you see error messages in the console when sending messages:
+If the AI is not responding:
 
-1. Verify your OpenAI API key is valid in the `.env` file
-2. Check the browser console for specific error messages
-3. Restart the development server
+1. Check that your OpenAI API key is correct
+2. Verify you have credit/usage available on your OpenAI account
+3. Check server logs for specific API errors
 
-### TypeErrors with `.map()`
+## License
 
-If you encounter `TypeError: messages.map is not a function` or similar errors:
-
-1. This typically means the messages array is not properly initialized
-2. Try reinitializing the database with `npm run init-db`
-3. Restart the development server
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
-# komensa5
+MIT

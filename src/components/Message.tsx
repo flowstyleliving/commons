@@ -11,17 +11,17 @@ const Message: React.FC<MessageProps> = ({ sender, content, timestamp }) => {
   const isAssistant = sender === 'assistant';
   const isM = sender === 'M';
   
-  // Different styling for different senders
+  // Different styling for different senders with warmer colors
   const messageStyles = {
-    'M': 'bg-blue-100 text-blue-800',
-    'E': 'bg-purple-100 text-purple-800',
-    'assistant': 'bg-green-100 text-green-800'
+    'M': 'bg-gradient-to-br from-amber-50 to-amber-100 text-amber-900 border border-amber-200',
+    'E': 'bg-gradient-to-br from-rose-50 to-rose-100 text-rose-900 border border-rose-200',
+    'assistant': 'bg-gradient-to-br from-teal-50 to-teal-100 text-teal-900 border border-teal-200'
   };
   
   const avatarStyles = {
-    'M': 'bg-blue-500',
-    'E': 'bg-purple-500',
-    'assistant': 'bg-green-500'
+    'M': 'bg-gradient-to-br from-amber-400 to-amber-600 shadow-md',
+    'E': 'bg-gradient-to-br from-rose-400 to-rose-600 shadow-md',
+    'assistant': 'bg-gradient-to-br from-teal-400 to-teal-600 shadow-md'
   };
   
   const alignmentStyles = isAssistant 
@@ -32,22 +32,22 @@ const Message: React.FC<MessageProps> = ({ sender, content, timestamp }) => {
     <div className={`flex ${alignmentStyles} mb-4`}>
       <div className={`flex max-w-xs lg:max-w-md`}>
         {!isM && (
-          <div className={`flex-shrink-0 h-10 w-10 rounded-full ${avatarStyles[sender as keyof typeof avatarStyles]} flex items-center justify-center text-white font-bold mr-2`}>
+          <div className={`flex-shrink-0 h-10 w-10 rounded-full ${avatarStyles[sender as keyof typeof avatarStyles]} flex items-center justify-center text-white font-bold mr-2 ring-2 ring-white`}>
             {sender === 'assistant' ? 'AI' : sender}
           </div>
         )}
         
         <div>
-          <div className={`rounded-lg px-4 py-2 ${messageStyles[sender as keyof typeof messageStyles]}`}>
-            <p className="text-sm">{content}</p>
+          <div className={`rounded-2xl px-4 py-3 ${messageStyles[sender as keyof typeof messageStyles]} shadow-sm backdrop-blur-sm`}>
+            <p className="text-sm leading-relaxed">{content}</p>
           </div>
-          <span className="text-xs text-gray-500 leading-none">
-            {new Date(timestamp).toLocaleTimeString()}
+          <span className="text-xs text-gray-500 leading-none ml-2">
+            {new Date(timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
           </span>
         </div>
         
         {isM && (
-          <div className={`flex-shrink-0 h-10 w-10 rounded-full ${avatarStyles[sender as keyof typeof avatarStyles]} flex items-center justify-center text-white font-bold ml-2`}>
+          <div className={`flex-shrink-0 h-10 w-10 rounded-full ${avatarStyles[sender as keyof typeof avatarStyles]} flex items-center justify-center text-white font-bold ml-2 ring-2 ring-white`}>
             {sender}
           </div>
         )}

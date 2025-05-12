@@ -15,10 +15,12 @@ export async function GET() {
       ORDER BY created_at ASC
     `);
     
-    return NextResponse.json(result.rows);
+    // Always return an array, even if no results
+    return NextResponse.json(result.rows || []);
   } catch (error) {
     console.error('Error fetching messages:', error);
-    return NextResponse.json({ error: 'Failed to fetch messages' }, { status: 500 });
+    // Return an empty array instead of error object to avoid client-side parsing issues
+    return NextResponse.json([]);
   }
 }
 
