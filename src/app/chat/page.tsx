@@ -43,6 +43,7 @@ function ChatComponent() {
   const [availableUsers, setAvailableUsers] = useState<{M: boolean, E: boolean}>({M: true, E: true});
   const [dbError, setDbError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [isResetting, setIsResetting] = useState(false);
   
   // Redirect to home if no user is selected
   useEffect(() => {
@@ -268,6 +269,35 @@ function ChatComponent() {
     }
   };
   
+  // Handle chat reset
+  const handleResetChat = async () => {
+    if (!confirm('Are you sure you want to reset the chat? This will clear all messages and turn history.')) {
+      return;
+    }
+    
+    setIsResetting(true);
+    
+    try {
+      const response = await fetch('/api/reset', {
+        method: 'POST',
+      });
+      
+      if (response.ok) {
+        // Reload messages and turn status
+        fetchActiveUsers();
+        setMessages([]);
+        setCurrentTurn('M');
+        setIsAssistantTyping(false);
+      } else {
+        console.error('Failed to reset chat');
+      }
+    } catch (error) {
+      console.error('Error resetting chat:', error);
+    } finally {
+      setIsResetting(false);
+    }
+  };
+  
   // Guard against messages not being an array
   const messageList = Array.isArray(messages) ? messages : [];
   
@@ -307,7 +337,31 @@ function ChatComponent() {
       {/* Header */}
       <header className="bg-gradient-to-r from-amber-500 to-amber-600 shadow-md p-4 text-white">
         <div className="max-w-4xl mx-auto flex justify-between items-center">
-          <h1 className="text-2xl font-bold">Komensa Chat</h1>
+          <div className="flex items-center space-x-3">
+            <h1 className="text-2xl font-bold">Komensa Chat</h1>
+            <button 
+              onClick={handleResetChat}
+              disabled={isResetting}
+              className="text-sm px-3 py-1 bg-white/20 hover:bg-white/30 rounded-md transition-colors flex items-center"
+            >
+              {isResetting ? (
+                <>
+                  <svg className="animate-spin h-4 w-4 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Resetting...
+                </>
+              ) : (
+                <>
+                  <svg className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                  Reset Chat
+                </>
+              )}
+            </button>
+          </div>
           <div className="flex items-center space-x-4">
             <span className="text-sm">
               Current Turn: <span className="font-bold bg-white/20 px-2 py-1 rounded-md">{currentTurn || '...'}</span>

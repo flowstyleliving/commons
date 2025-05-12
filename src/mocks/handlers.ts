@@ -37,6 +37,29 @@ let roomState = {
   assistant_active: false
 };
 
+// Reset chat data
+const resetChatData = () => {
+  // Clear messages
+  messages.length = 0;
+  
+  // Add initial message
+  messages.push({
+    id: '1',
+    sender: 'assistant',
+    content: 'Chat has been reset. Welcome to Komensa!',
+    created_at: new Date().toISOString(),
+    room_id: 'main-room'
+  });
+  
+  // Reset room state
+  roomState = {
+    current_turn: 'M',
+    assistant_active: false
+  };
+  
+  return { success: true, message: 'Chat reset successfully' };
+};
+
 export const handlers = [
   // GET messages
   http.get('/api/messages', () => {
@@ -96,5 +119,11 @@ export const handlers = [
   // GET turn status
   http.get('/api/turn', () => {
     return HttpResponse.json(roomState);
+  }),
+  
+  // POST reset chat
+  http.post('/api/reset', () => {
+    const result = resetChatData();
+    return HttpResponse.json(result);
   })
 ]; 
