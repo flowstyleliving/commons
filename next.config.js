@@ -7,10 +7,6 @@ const nextConfig = {
   env: {
     // Set a flag for development vs production to customize behavior
     IS_VERCEL_DEPLOYMENT: process.env.VERCEL === '1' ? 'true' : 'false'
-  },
-  // Don't include the database connection in the client bundle
-  experimental: {
-    serverExternalPackages: ['pg']
   }
 };
 
