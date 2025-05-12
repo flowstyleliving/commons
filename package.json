@@ -10,7 +10,8 @@
     "init-db": "npx tsx scripts/init-db.ts",
     "check-db": "npx tsx scripts/check-db.ts",
     "test": "jest src/components",
-    "test:watch": "jest src/components --watch"
+    "test:watch": "jest src/components --watch",
+    "vercel-deploy": "vercel deploy --prod"
   },
   "dependencies": {
     "dotenv": "^16.5.0",
