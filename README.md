@@ -67,6 +67,39 @@ CREATE TABLE room_state (
 5. The turn passes to the other user
 6. The conversation continues with context maintained
 
+## Troubleshooting
+
+### Database Issues
+
+If you encounter database-related errors or no messages appear:
+
+1. Make sure your Neon PostgreSQL database is set up correctly
+2. Check your `.env` file contains the correct `DATABASE_URL`
+3. Run the database check script to verify connection and data:
+   ```
+   npm run check-db
+   ```
+4. If issues persist, reinitialize the database:
+   ```
+   npm run init-db
+   ```
+
+### API Errors
+
+If you see error messages in the console when sending messages:
+
+1. Verify your OpenAI API key is valid in the `.env` file
+2. Check the browser console for specific error messages
+3. Restart the development server
+
+### TypeErrors with `.map()`
+
+If you encounter `TypeError: messages.map is not a function` or similar errors:
+
+1. This typically means the messages array is not properly initialized
+2. Try reinitializing the database with `npm run init-db`
+3. Restart the development server
+
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
 ## Learn More
@@ -83,3 +116,4 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+# komensa5
