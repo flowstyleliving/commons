@@ -4,12 +4,12 @@ interface MessageProps {
   sender: string;
   content: string;
   timestamp: string;
+  isCurrentUser?: boolean;
 }
 
-const Message: React.FC<MessageProps> = ({ sender, content, timestamp }) => {
+const Message: React.FC<MessageProps> = ({ sender, content, timestamp, isCurrentUser = false }) => {
   // Determine message styling based on sender
   const isAssistant = sender === 'assistant';
-  const isM = sender === 'M';
   
   // Different styling for different senders with warmer colors
   const messageStyles = {
@@ -24,14 +24,13 @@ const Message: React.FC<MessageProps> = ({ sender, content, timestamp }) => {
     'assistant': 'bg-gradient-to-br from-teal-400 to-teal-600 shadow-md'
   };
   
-  const alignmentStyles = isAssistant 
-    ? 'justify-start' 
-    : (isM ? 'justify-end' : 'justify-start');
+  // Use isCurrentUser prop for alignment
+  const alignmentStyles = isCurrentUser ? 'justify-end' : 'justify-start';
   
   return (
     <div className={`flex ${alignmentStyles} mb-4`}>
       <div className={`flex max-w-xs lg:max-w-md`}>
-        {!isM && (
+        {!isCurrentUser && (
           <div className={`flex-shrink-0 h-10 w-10 rounded-full ${avatarStyles[sender as keyof typeof avatarStyles]} flex items-center justify-center text-white font-bold mr-2 ring-2 ring-white`}>
             {sender === 'assistant' ? 'AI' : sender}
           </div>
@@ -46,7 +45,7 @@ const Message: React.FC<MessageProps> = ({ sender, content, timestamp }) => {
           </span>
         </div>
         
-        {isM && (
+        {isCurrentUser && (
           <div className={`flex-shrink-0 h-10 w-10 rounded-full ${avatarStyles[sender as keyof typeof avatarStyles]} flex items-center justify-center text-white font-bold ml-2 ring-2 ring-white`}>
             {sender}
           </div>

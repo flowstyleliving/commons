@@ -340,6 +340,7 @@ function ChatComponent() {
                 sender={message.sender}
                 content={message.content}
                 timestamp={message.created_at}
+                isCurrentUser={message.sender === user}
               />
             ))
           )}
@@ -354,6 +355,21 @@ function ChatComponent() {
       {/* Message Input */}
       <div className="bg-white/80 backdrop-blur-sm border-t border-amber-200 p-4 shadow-inner">
         <div className="max-w-4xl mx-auto">
+          {/* Status Messages */}
+          <div className="mb-2">
+            {currentTurn !== user && !isAssistantTyping && (
+              <p className="text-sm text-amber-700 ml-2">
+                Waiting for {currentTurn} to take their turn...
+              </p>
+            )}
+            
+            {isAssistantTyping && (
+              <p className="text-sm text-teal-700 ml-2">
+                AI is thinking and responding...
+              </p>
+            )}
+          </div>
+          
           <form onSubmit={handleSendMessage} className="flex">
             <input
               type="text"
@@ -365,7 +381,7 @@ function ChatComponent() {
                   : `Waiting for ${currentTurn} to send a message...`
               }
               disabled={currentTurn !== user || isAssistantTyping}
-              className="flex-1 rounded-l-full border-amber-200 focus:ring-amber-500 focus:border-amber-500 shadow-sm py-3 px-4 bg-white/90"
+              className="flex-1 rounded-l-full border-amber-200 focus:ring-amber-500 focus:border-amber-500 shadow-sm py-3 px-4 bg-white/90 text-black"
             />
             <button
               type="submit"
@@ -379,18 +395,6 @@ function ChatComponent() {
               Send
             </button>
           </form>
-          
-          {currentTurn !== user && !isAssistantTyping && (
-            <p className="text-sm text-amber-700 mt-2 ml-2">
-              Waiting for {currentTurn} to take their turn...
-            </p>
-          )}
-          
-          {isAssistantTyping && (
-            <p className="text-sm text-teal-700 mt-2 ml-2">
-              AI is thinking and responding...
-            </p>
-          )}
         </div>
       </div>
     </div>
