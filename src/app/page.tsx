@@ -94,25 +94,44 @@ export default function Home() {
   
   // JSX for database error UI
   const renderDbErrorUI = () => (
-    <div className="flex flex-col items-center justify-center bg-amber-50 p-8 rounded-xl shadow-lg max-w-md w-full border border-amber-200">
+    <div className="flex flex-col items-center justify-center bg-amber-50 p-8 rounded-xl shadow-lg max-w-md w-full border border-amber-200 relative z-10">
       <div className="text-rose-600 text-4xl mb-4">⚠️</div>
       <h1 className="text-2xl font-bold text-amber-800 mb-4">Database Connection Error</h1>
       <p className="text-amber-700 mb-6">{dbError || 'Could not connect to the database. Please check your configuration.'}</p>
+      
+      <div className="bg-amber-50 p-4 rounded-lg border border-amber-200 mb-6 w-full">
+        <p className="text-sm text-amber-800 font-medium mb-2">Development Options:</p>
+        <ol className="list-decimal list-inside text-sm text-amber-700 space-y-1">
+          <li>Continue without a database - the app has fallbacks for development</li>
+          <li>Set up a local Postgres database</li>
+          <li>Sign up for a free Neon PostgreSQL database</li>
+        </ol>
+      </div>
+      
       <div className="bg-amber-50 p-4 rounded-lg border border-amber-200 mb-6 w-full">
         <p className="text-sm text-amber-800 font-medium mb-2">Troubleshooting Steps:</p>
         <ol className="list-decimal list-inside text-sm text-amber-700 space-y-1">
-          <li>Ensure your DATABASE_URL environment variable is set correctly</li>
-          <li>Check that your database server is running</li>
-          <li>Verify your network connection to the database</li>
-          <li>Make sure SSL is enabled if required by your database provider</li>
+          <li>Check your <code className="bg-amber-100 px-1 rounded">.env.local</code> file has a valid <code className="bg-amber-100 px-1 rounded">DATABASE_URL</code></li>
+          <li>Run <code className="bg-amber-100 px-1 rounded">npm run check-db</code> to diagnose issues</li>
+          <li>Run <code className="bg-amber-100 px-1 rounded">npm run init-db</code> to initialize your database</li>
         </ol>
       </div>
-      <button 
-        onClick={() => window.location.reload()} 
-        className="w-full bg-gradient-to-r from-amber-500 to-amber-600 text-white py-3 px-4 rounded-lg hover:from-amber-600 hover:to-amber-700 transition-all shadow-sm"
-      >
-        Retry Connection
-      </button>
+      
+      <div className="flex gap-3 w-full">
+        <button 
+          onClick={() => window.location.reload()} 
+          className="flex-1 bg-gradient-to-r from-amber-500 to-amber-600 text-white py-3 px-4 rounded-lg hover:from-amber-600 hover:to-amber-700 transition-all shadow-sm"
+        >
+          Retry Connection
+        </button>
+        
+        <button 
+          onClick={() => setDbError(null)} 
+          className="flex-1 bg-white text-amber-700 border border-amber-300 py-3 px-4 rounded-lg hover:bg-amber-50 transition-all shadow-sm"
+        >
+          Continue Anyway
+        </button>
+      </div>
     </div>
   );
 

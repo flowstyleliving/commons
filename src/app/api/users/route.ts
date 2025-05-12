@@ -24,6 +24,11 @@ export async function GET() {
     });
   } catch (error) {
     console.error('Error fetching active users:', error);
-    return NextResponse.json({ error: 'Failed to fetch active users' }, { status: 500 });
+    
+    // Return a fallback with no active users if database is not available
+    return NextResponse.json({ 
+      activeUsers: [],
+      availableUser: 'M'  // Default to M if we can't determine
+    });
   }
 } 
