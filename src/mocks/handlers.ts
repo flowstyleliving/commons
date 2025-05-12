@@ -1,5 +1,11 @@
 import { http, HttpResponse } from 'msw';
 
+// Message type definition
+interface MessageRequest {
+  sender: string;
+  content: string;
+}
+
 // Sample message data
 const messages = [
   {
@@ -39,7 +45,7 @@ export const handlers = [
 
   // POST messages
   http.post('/api/messages', async ({ request }) => {
-    const { sender, content } = await request.json();
+    const { sender, content } = await request.json() as MessageRequest;
 
     // Validate user's turn
     if (sender !== roomState.current_turn || roomState.assistant_active) {
