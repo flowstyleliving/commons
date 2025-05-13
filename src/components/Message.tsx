@@ -24,28 +24,37 @@ const Message: React.FC<MessageProps> = ({ sender, content, timestamp, isCurrent
     'assistant': 'bg-gradient-to-br from-teal-400 to-teal-600 shadow-md'
   };
   
-  // Use isCurrentUser prop for alignment
-  const alignmentStyles = isCurrentUser ? 'justify-end' : 'justify-start';
+  // Determine alignment based on sender
+  // AI messages are centered, user messages are left/right aligned based on isCurrentUser
+  const alignmentStyles = isAssistant 
+    ? 'justify-center' 
+    : (isCurrentUser ? 'justify-end' : 'justify-start');
   
   return (
     <div className={`flex ${alignmentStyles} mb-4`}>
-      <div className={`flex max-w-xs lg:max-w-md`}>
-        {!isCurrentUser && (
-          <div className={`flex-shrink-0 h-10 w-10 rounded-full ${avatarStyles[sender as keyof typeof avatarStyles]} flex items-center justify-center text-white font-bold mr-2 ring-2 ring-white`}>
-            {sender === 'assistant' ? 'AI' : sender}
+      <div className={`flex ${isAssistant ? 'flex-col items-center' : 'max-w-xs lg:max-w-md'}`}>
+        {isAssistant && (
+          <div className={`flex-shrink-0 h-10 w-10 rounded-full ${avatarStyles.assistant} flex items-center justify-center text-white font-bold mb-2 ring-2 ring-white`}>
+            AI
           </div>
         )}
         
-        <div>
-          <div className={`rounded-2xl px-4 py-3 ${messageStyles[sender as keyof typeof messageStyles]} shadow-sm backdrop-blur-sm`}>
+        {!isCurrentUser && !isAssistant && (
+          <div className={`flex-shrink-0 h-10 w-10 rounded-full ${avatarStyles[sender as keyof typeof avatarStyles]} flex items-center justify-center text-white font-bold mr-2 ring-2 ring-white`}>
+            {sender}
+          </div>
+        )}
+        
+        <div className={`${isAssistant ? 'text-center' : ''}`}>
+          <div className={`rounded-2xl px-4 py-3 ${messageStyles[sender as keyof typeof messageStyles]} shadow-sm backdrop-blur-sm ${isAssistant ? 'max-w-md' : ''}`}>
             <p className="text-sm leading-relaxed">{content}</p>
           </div>
-          <span className="text-xs text-gray-500 leading-none ml-2">
+          <span className={`text-xs text-gray-500 leading-none ${isAssistant ? 'mt-1' : 'ml-2'}`}>
             {new Date(timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
           </span>
         </div>
         
-        {isCurrentUser && (
+        {isCurrentUser && !isAssistant && (
           <div className={`flex-shrink-0 h-10 w-10 rounded-full ${avatarStyles[sender as keyof typeof avatarStyles]} flex items-center justify-center text-white font-bold ml-2 ring-2 ring-white`}>
             {sender}
           </div>

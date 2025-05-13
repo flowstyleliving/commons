@@ -43,32 +43,59 @@ const TypingIndicator: React.FC<TypingIndicatorProps> = ({ isTyping, sender, isC
   // Display text based on sender
   const typingText = isAssistant ? 'thinking' : 'typing';
   
-  // Determine alignment based on whether it's the current user
-  const alignmentStyles = isCurrentUser ? 'justify-end' : 'justify-start';
+  // AI in center, users on sides
+  const alignmentStyles = isAssistant 
+    ? 'justify-center' 
+    : (isCurrentUser ? 'justify-end' : 'justify-start');
   
   return (
     <div className={`flex ${alignmentStyles} my-3 mx-4`}>
-      {!isCurrentUser && (
-        <div className={`flex-shrink-0 h-8 w-8 rounded-full ${avatarStyles[sender as keyof typeof avatarStyles]} flex items-center justify-center text-white font-bold text-xs mr-2 ring-2 ring-white shadow-sm`}>
-          {isAssistant ? 'AI' : sender}
+      {/* For AI, show avatar on top */}
+      {isAssistant && (
+        <div className="flex flex-col items-center">
+          <div className={`flex-shrink-0 h-8 w-8 rounded-full ${avatarStyles[sender as keyof typeof avatarStyles]} flex items-center justify-center text-white font-bold text-xs mb-2 ring-2 ring-white shadow-sm`}>
+            AI
+          </div>
+          
+          <div className={`rounded-2xl px-3 py-2 ${bgStyles[sender as keyof typeof bgStyles]} shadow-sm backdrop-blur-sm`}>
+            <div className="flex items-center space-x-1">
+              <span className={`${textStyles[sender as keyof typeof textStyles]} text-xs`}>{typingText}</span>
+              <div className="flex space-x-1">
+                <div role="presentation" className={`w-1.5 h-1.5 ${dotStyles[sender as keyof typeof dotStyles]} rounded-full animate-bounce`} style={{ animationDelay: '0ms' }}></div>
+                <div role="presentation" className={`w-1.5 h-1.5 ${dotStyles[sender as keyof typeof dotStyles]} rounded-full animate-bounce`} style={{ animationDelay: '150ms' }}></div>
+                <div role="presentation" className={`w-1.5 h-1.5 ${dotStyles[sender as keyof typeof dotStyles]} rounded-full animate-bounce`} style={{ animationDelay: '300ms' }}></div>
+              </div>
+            </div>
+          </div>
         </div>
       )}
       
-      <div className={`rounded-2xl px-3 py-2 ${bgStyles[sender as keyof typeof bgStyles]} shadow-sm backdrop-blur-sm`}>
-        <div className="flex items-center space-x-1">
-          <span className={`${textStyles[sender as keyof typeof textStyles]} text-xs`}>{typingText}</span>
-          <div className="flex space-x-1">
-            <div role="presentation" className={`w-1.5 h-1.5 ${dotStyles[sender as keyof typeof dotStyles]} rounded-full animate-bounce`} style={{ animationDelay: '0ms' }}></div>
-            <div role="presentation" className={`w-1.5 h-1.5 ${dotStyles[sender as keyof typeof dotStyles]} rounded-full animate-bounce`} style={{ animationDelay: '150ms' }}></div>
-            <div role="presentation" className={`w-1.5 h-1.5 ${dotStyles[sender as keyof typeof dotStyles]} rounded-full animate-bounce`} style={{ animationDelay: '300ms' }}></div>
+      {/* For users, show horizontal layout */}
+      {!isAssistant && (
+        <>
+          {!isCurrentUser && (
+            <div className={`flex-shrink-0 h-8 w-8 rounded-full ${avatarStyles[sender as keyof typeof avatarStyles]} flex items-center justify-center text-white font-bold text-xs mr-2 ring-2 ring-white shadow-sm`}>
+              {sender}
+            </div>
+          )}
+          
+          <div className={`rounded-2xl px-3 py-2 ${bgStyles[sender as keyof typeof bgStyles]} shadow-sm backdrop-blur-sm`}>
+            <div className="flex items-center space-x-1">
+              <span className={`${textStyles[sender as keyof typeof textStyles]} text-xs`}>{typingText}</span>
+              <div className="flex space-x-1">
+                <div role="presentation" className={`w-1.5 h-1.5 ${dotStyles[sender as keyof typeof dotStyles]} rounded-full animate-bounce`} style={{ animationDelay: '0ms' }}></div>
+                <div role="presentation" className={`w-1.5 h-1.5 ${dotStyles[sender as keyof typeof dotStyles]} rounded-full animate-bounce`} style={{ animationDelay: '150ms' }}></div>
+                <div role="presentation" className={`w-1.5 h-1.5 ${dotStyles[sender as keyof typeof dotStyles]} rounded-full animate-bounce`} style={{ animationDelay: '300ms' }}></div>
+              </div>
+            </div>
           </div>
-        </div>
-      </div>
-      
-      {isCurrentUser && (
-        <div className={`flex-shrink-0 h-8 w-8 rounded-full ${avatarStyles[sender as keyof typeof avatarStyles]} flex items-center justify-center text-white font-bold text-xs ml-2 ring-2 ring-white shadow-sm`}>
-          {sender}
-        </div>
+          
+          {isCurrentUser && (
+            <div className={`flex-shrink-0 h-8 w-8 rounded-full ${avatarStyles[sender as keyof typeof avatarStyles]} flex items-center justify-center text-white font-bold text-xs ml-2 ring-2 ring-white shadow-sm`}>
+              {sender}
+            </div>
+          )}
+        </>
       )}
     </div>
   );
