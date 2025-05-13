@@ -68,7 +68,13 @@ function SetupComponent() {
         const setupData = await setupResponse.json();
         
         if (isMounted) {
-          setSetupState(setupData);
+          // Only update state if there's a meaningful change to avoid re-renders
+          if (!setupState || 
+              setupState.status !== setupData.status || 
+              JSON.stringify(setupState.userAnswers) !== JSON.stringify(setupData.userAnswers) || 
+              setupState.summary !== setupData.summary) {
+            setSetupState(setupData);
+          }
           setSetupError(null);
         }
       } catch (err: any) {
@@ -88,12 +94,17 @@ function SetupComponent() {
       fetchSetupStatus();
     }
     
-    // Poll for setup status every 3 seconds
-    const interval = setInterval(fetchSetupStatus, 3000);
+    // Poll for setup status less frequently (every 5 seconds instead of 3)
+    // Only poll if waiting for other user to complete questions
+    const shouldPoll = setupState?.status === 'awaiting_M' || 
+                      setupState?.status === 'awaiting_E' ||
+                      setupState?.status === 'summarizing';
+    
+    const interval = shouldPoll ? setInterval(fetchSetupStatus, 5000) : null;
     
     return () => {
       isMounted = false;
-      clearInterval(interval);
+      if (interval) clearInterval(interval);
     };
   }, [selectedUser]);
   
