@@ -63,56 +63,141 @@ const defaultStructuredState: StructuredState = {
 
 // Function to format the state for the prompt
 function formatStateForPrompt(state: StructuredState | null | undefined): string {
-  const currentState = state || defaultStructuredState;
-  
-  // Safely join arrays with fallbacks for undefined values
-  const safeJoin = (arr: any[] | undefined) => Array.isArray(arr) ? arr.join(', ') : '';
-  
-  // Make sure all properties exist with safe defaults
-  const issues = Array.isArray(currentState.current_issues) ? currentState.current_issues : [];
-  const mFeels = Array.isArray(currentState.partner_perspectives?.M?.feels) ? currentState.partner_perspectives.M.feels : [];
-  const mNeeds = Array.isArray(currentState.partner_perspectives?.M?.needs) ? currentState.partner_perspectives.M.needs : [];
-  const eFeels = Array.isArray(currentState.partner_perspectives?.E?.feels) ? currentState.partner_perspectives.E.feels : [];
-  const eNeeds = Array.isArray(currentState.partner_perspectives?.E?.needs) ? currentState.partner_perspectives.E.needs : [];
-  const goals = Array.isArray(currentState.goals_for_session) ? currentState.goals_for_session : [];
-  
-  // Safe stringify for objects
-  const safeStringify = (obj: any) => obj ? JSON.stringify(obj) : '{}';
-  
-  // Ensure perspectives exist
-  const mViews = currentState.partner_perspectives?.M?.views || {};
-  const eViews = currentState.partner_perspectives?.E?.views || {};
-  
-  return `<Current State>
+  // If state is completely null/undefined, use a completely fresh defaultStructuredState
+  if (!state) {
+    return `<Current State>
+Current Issues: 
+Points of Contention: {}
+M's Perspective: Feels: ; Needs: ; Views: {}
+E's Perspective: Feels: ; Needs: ; Views: {}
+Agreements Reached: []
+Goals: 
+Summary: Just started.
+</Current State>`;
+  }
+
+  try {
+    // Create safe getters that handle null/undefined at every level
+    const safeGet = (obj: any, ...path: string[]) => {
+      let current = obj;
+      for (const key of path) {
+        if (current === null || current === undefined) return undefined;
+        current = current[key];
+      }
+      return current;
+    };
+
+    const safeJoin = (arr: any[] | null | undefined) => {
+      if (!arr || !Array.isArray(arr)) return '';
+      return arr.join(', ');
+    };
+
+    const safeStringify = (obj: any | null | undefined) => {
+      if (!obj) return '{}';
+      try {
+        return JSON.stringify(obj);
+      } catch (e) {
+        return '{}';
+      }
+    };
+
+    // Safely get values with fallbacks
+    const issues = safeGet(state, 'current_issues') || [];
+    const contention = safeGet(state, 'points_of_contention') || {};
+    
+    // M's perspective with fallbacks
+    const mFeels = safeGet(state, 'partner_perspectives', 'M', 'feels') || [];
+    const mNeeds = safeGet(state, 'partner_perspectives', 'M', 'needs') || [];
+    const mViews = safeGet(state, 'partner_perspectives', 'M', 'views') || {};
+    
+    // E's perspective with fallbacks
+    const eFeels = safeGet(state, 'partner_perspectives', 'E', 'feels') || [];
+    const eNeeds = safeGet(state, 'partner_perspectives', 'E', 'needs') || [];
+    const eViews = safeGet(state, 'partner_perspectives', 'E', 'views') || {};
+    
+    const agreements = safeGet(state, 'agreements_reached') || [];
+    const goals = safeGet(state, 'goals_for_session') || [];
+    const summary = safeGet(state, 'summary_of_session_progress') || 'Just started.';
+
+    // Build the string safely
+    return `<Current State>
 Current Issues: ${safeJoin(issues)}
-Points of Contention: ${safeStringify(currentState.points_of_contention)}
+Points of Contention: ${safeStringify(contention)}
 M's Perspective: Feels: ${safeJoin(mFeels)}; Needs: ${safeJoin(mNeeds)}; Views: ${safeStringify(mViews)}
 E's Perspective: Feels: ${safeJoin(eFeels)}; Needs: ${safeJoin(eNeeds)}; Views: ${safeStringify(eViews)}
-Agreements Reached: ${safeStringify(currentState.agreements_reached)}
+Agreements Reached: ${safeStringify(agreements)}
 Goals: ${safeJoin(goals)}
-Summary: ${currentState.summary_of_session_progress || 'Just started.'}
+Summary: ${summary}
 </Current State>`;
+  } catch (error) {
+    console.error("Error formatting state for prompt:", error);
+    // Return a minimal valid state if anything goes wrong
+    return `<Current State>
+Current Issues: 
+Points of Contention: {}
+M's Perspective: Feels: ; Needs: ; Views: {}
+E's Perspective: Feels: ; Needs: ; Views: {}
+Agreements Reached: []
+Goals: 
+Summary: Just started.
+</Current State>`;
+  }
 }
 
 // Function to parse state update JSON from AI response
 function parseStateUpdate(responseText: string): Partial<StructuredState> | null {
-  const marker = 'STATE_UPDATE_JSON:';
-  const jsonStart = responseText.lastIndexOf(marker);
-  if (jsonStart === -1) {
-    return null;
-  }
-  const jsonString = responseText.substring(jsonStart + marker.length).trim();
   try {
+    // Handle null/undefined response text
+    if (!responseText) {
+      console.warn("Empty response text passed to parseStateUpdate");
+      return null;
+    }
+    
+    const marker = 'STATE_UPDATE_JSON:';
+    const jsonStart = responseText.lastIndexOf(marker);
+    
+    if (jsonStart === -1) {
+      return null;
+    }
+    
+    // Extract JSON string, handling potential issues
+    const jsonString = responseText.substring(jsonStart + marker.length).trim();
+    
+    if (!jsonString || jsonString.length < 2) {
+      console.warn("Empty or too short JSON string found after marker:", jsonString);
+      return null;
+    }
+    
     // Basic validation: Check for opening and closing braces
     if (!jsonString.startsWith('{') || !jsonString.endsWith('}')) {
       console.warn("Potential malformed JSON for state update:", jsonString);
       return null;
     }
-    const parsed = JSON.parse(jsonString);
-    // Add more validation based on StructuredState interface if needed
-    return parsed as Partial<StructuredState>;
+    
+    try {
+      const parsed = JSON.parse(jsonString);
+      
+      // Validate that it's an object
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        console.warn("Parsed JSON is not a valid object:", parsed);
+        return null;
+      }
+      
+      // Validate core structure minimally
+      if (parsed.partner_perspectives) {
+        // Ensure M and E exist if partner_perspectives exists
+        parsed.partner_perspectives.M = parsed.partner_perspectives.M || { feels: [], needs: [], views: {} };
+        parsed.partner_perspectives.E = parsed.partner_perspectives.E || { feels: [], needs: [], views: {} };
+      }
+      
+      // Add more validation based on StructuredState interface if needed
+      return parsed as Partial<StructuredState>;
+    } catch (error) {
+      console.error("Error parsing state update JSON:", error, "\nJSON String:", jsonString);
+      return null;
+    }
   } catch (error) {
-    console.error("Error parsing state update JSON:", error, "\nJSON String:", jsonString);
+    console.error("Unexpected error in parseStateUpdate:", error);
     return null;
   }
 }
