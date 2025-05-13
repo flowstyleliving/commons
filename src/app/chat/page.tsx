@@ -86,6 +86,17 @@ function ChatComponent() {
   useEffect(() => {
     const fetchInitialData = async () => {
       try {
+        // Try to run database migration first to fix schema issues
+        try {
+          console.log('Checking and running database migrations if needed...');
+          const migrateResponse = await fetch('/api/db-migrate');
+          const migrateData = await migrateResponse.json();
+          console.log('Database migration response:', migrateData);
+        } catch (migrateError) {
+          console.error('Error running database migration:', migrateError);
+          // Continue anyway - initialization will still try to create tables
+        }
+        
         // Try to initialize database if needed
         try {
           console.log('Attempting to initialize database...');
