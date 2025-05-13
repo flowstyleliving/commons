@@ -1,7 +1,20 @@
 import { http, HttpResponse } from 'msw';
 
+// Type definition for setup answer request
+interface SetupAnswerRequest {
+  answers: Record<string, string>;
+}
+
+// Define a type for the setup state
+interface SetupState {
+  status: string;
+  questions: string[];
+  userAnswers: Record<string, string> | null;
+  summary: string | null;
+}
+
 // Setup state
-let setupState = {
+let setupState: SetupState = {
   status: 'awaiting_M',
   questions: [
     "What is the primary issue or topic you are hoping to discuss or resolve today?",
@@ -15,7 +28,7 @@ let setupState = {
 };
 
 // Store both users' answers
-const userAnswers = {
+const userAnswers: Record<'M' | 'E', Record<string, string>> = {
   M: {},
   E: {}
 };
@@ -56,7 +69,7 @@ export const setupHandlers = [
   http.post('/api/setup/answer', async ({ request }) => {
     const url = new URL(request.url);
     const user = url.searchParams.get('user') as 'M' | 'E';
-    const { answers } = await request.json();
+    const { answers } = await request.json() as SetupAnswerRequest;
     
     // Validate user
     if (!user || !['M', 'E'].includes(user)) {
