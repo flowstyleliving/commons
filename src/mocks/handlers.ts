@@ -6,6 +6,11 @@ interface MessageRequest {
   content: string;
 }
 
+interface TypingRequest {
+  user: string;
+  isTyping: boolean;
+}
+
 // Sample message data
 const messages = [
   {
@@ -37,6 +42,9 @@ let roomState = {
   assistant_active: false
 };
 
+// Typing state
+const typingUsers: string[] = [];
+
 // Reset chat data
 const resetChatData = () => {
   // Clear messages
@@ -56,6 +64,9 @@ const resetChatData = () => {
     current_turn: 'M',
     assistant_active: false
   };
+  
+  // Also clear typing status
+  typingUsers.length = 0;
   
   return { success: true, message: 'Chat reset successfully' };
 };
@@ -125,5 +136,28 @@ export const handlers = [
   http.post('/api/reset', () => {
     const result = resetChatData();
     return HttpResponse.json(result);
+  }),
+
+  // POST typing status
+  http.post('/api/typing', async ({ request }) => {
+    const { user, isTyping } = await request.json() as TypingRequest;
+    
+    // Update typing status
+    const existingIndex = typingUsers.indexOf(user);
+    
+    if (isTyping && existingIndex === -1) {
+      // Add to typing users
+      typingUsers.push(user);
+    } else if (!isTyping && existingIndex !== -1) {
+      // Remove from typing users
+      typingUsers.splice(existingIndex, 1);
+    }
+    
+    return HttpResponse.json({ success: true });
+  }),
+  
+  // GET typing status
+  http.get('/api/typing', () => {
+    return HttpResponse.json({ typingUsers });
   })
 ]; 

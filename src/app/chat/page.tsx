@@ -44,6 +44,10 @@ function ChatComponent() {
   const [dbError, setDbError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [isResetting, setIsResetting] = useState(false);
+  const [isUserTyping, setIsUserTyping] = useState(false);
+  const [typingTimeout, setTypingTimeout] = useState<NodeJS.Timeout | null>(null);
+  const [otherUserTyping, setOtherUserTyping] = useState(false);
+  const otherUser = user === 'M' ? 'E' : 'M';
   
   // Redirect to home if no user is selected
   useEffect(() => {
@@ -226,6 +230,31 @@ function ChatComponent() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
   
+  // Add effect to poll for typing status
+  useEffect(() => {
+    // Function to check if other users are typing
+    const checkTypingStatus = async () => {
+      try {
+        const response = await fetch('/api/typing');
+        
+        if (response.ok) {
+          const data = await response.json();
+          const typingUsers = data.typingUsers || [];
+          
+          // Check if the other user is typing
+          setOtherUserTyping(typingUsers.includes(otherUser));
+        }
+      } catch (error) {
+        console.error('Error checking typing status:', error);
+      }
+    };
+    
+    // Poll for typing status every second
+    const interval = setInterval(checkTypingStatus, 1000);
+    
+    return () => clearInterval(interval);
+  }, [otherUser]);
+  
   // Handle sending a message
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -297,6 +326,64 @@ function ChatComponent() {
       setIsResetting(false);
     }
   };
+  
+  // Handle input change with typing indicator
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setInputMessage(value);
+    
+    // Only show typing indicator if we're allowed to send messages
+    if (currentTurn === user && !isAssistantTyping) {
+      // Set user typing flag
+      setIsUserTyping(true);
+      
+      // Clear previous timeout if it exists
+      if (typingTimeout) {
+        clearTimeout(typingTimeout);
+      }
+      
+      // Set a new timeout to stop the typing indicator after 1.5 seconds of inactivity
+      const timeout = setTimeout(() => {
+        setIsUserTyping(false);
+        
+        // Tell the API we stopped typing
+        fetch('/api/typing', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            user,
+            isTyping: false
+          }),
+        }).catch(error => console.error('Error updating typing status:', error));
+        
+      }, 1500);
+      
+      setTypingTimeout(timeout);
+      
+      // Tell the API we're typing
+      fetch('/api/typing', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          user,
+          isTyping: true
+        }),
+      }).catch(error => console.error('Error updating typing status:', error));
+    }
+  };
+  
+  // Add cleanup for typing timeout
+  useEffect(() => {
+    return () => {
+      if (typingTimeout) {
+        clearTimeout(typingTimeout);
+      }
+    };
+  }, [typingTimeout]);
   
   // Guard against messages not being an array
   const messageList = Array.isArray(messages) ? messages : [];
@@ -399,7 +486,14 @@ function ChatComponent() {
             ))
           )}
           
+          {/* AI typing indicator */}
           {isAssistantTyping && <TypingIndicator isTyping={true} sender="AI" />}
+          
+          {/* User typing indicator - show if current user is typing */}
+          {isUserTyping && <TypingIndicator isTyping={true} sender={user} isCurrentUser={true} />}
+          
+          {/* Other user typing indicator */}
+          {otherUserTyping && <TypingIndicator isTyping={true} sender={otherUser} />}
           
           {/* For auto-scrolling */}
           <div ref={messagesEndRef} />
@@ -428,7 +522,7 @@ function ChatComponent() {
             <input
               type="text"
               value={inputMessage}
-              onChange={(e) => setInputMessage(e.target.value)}
+              onChange={handleInputChange}
               placeholder={
                 currentTurn === user 
                   ? "Type your message..." 
