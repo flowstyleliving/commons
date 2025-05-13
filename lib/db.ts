@@ -1,54 +1,38 @@
 import { Pool } from 'pg';
 
-// Create a connection pool with appropriate configuration
-const createPool = () => {
-  // Check if DATABASE_URL is available
-  if (!process.env.DATABASE_URL) {
-    console.warn('⚠️ DATABASE_URL not found, database features will not work');
-    // Return a mock pool for development
-    return {
-      query: async () => {
-        return { rows: [], rowCount: 0 };
-      },
-      end: async () => {}
-    } as unknown as Pool;
-  }
+// Use environment variables for connection details
+const DATABASE_URL = process.env.DATABASE_URL;
 
-  try {
-    // Create actual pool when DATABASE_URL is available
-    return new Pool({
-      connectionString: process.env.DATABASE_URL,
-      ssl: process.env.NODE_ENV === 'production' ? 
-        { rejectUnauthorized: false } : 
-        process.env.DATABASE_URL.includes('sslmode=require')
-    });
-  } catch (error) {
-    console.error('Error creating database pool:', error);
-    // Return a mock pool on error
-    return {
-      query: async () => {
-        return { rows: [], rowCount: 0 };
-      },
-      end: async () => {}
-    } as unknown as Pool;
-  }
-};
+// Create a connection pool
+const pool = new Pool({
+  connectionString: DATABASE_URL,
+  ssl: DATABASE_URL ? { rejectUnauthorized: false } : false,
+});
 
-// Create the pool
-const pool = createPool();
-
-// Helper function to run queries with error handling
+// Query helper function
 export async function query(text: string, params?: any[]) {
   try {
-    const start = Date.now();
-    const res = await pool.query(text, params);
-    const duration = Date.now() - start;
-    console.log('Executed query', { text, duration, rows: res.rowCount });
-    return res;
+    return await pool.query(text, params);
   } catch (error) {
-    console.error('Query error:', error);
-    // Return a mock result to prevent app crashes
-    return { rows: [], rowCount: 0 };
+    console.error('Database query error:', error);
+    throw error;
+  }
+}
+
+// Health check function
+export async function checkConnection() {
+  try {
+    const result = await pool.query('SELECT NOW()');
+    return { 
+      status: 'connected', 
+      timestamp: result.rows[0].now 
+    };
+  } catch (error) {
+    console.error('Database connection error:', error);
+    return { 
+      status: 'error', 
+      message: error instanceof Error ? error.message : 'Unknown error' 
+    };
   }
 }
 

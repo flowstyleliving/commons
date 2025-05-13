@@ -2,18 +2,39 @@ import { NextResponse } from 'next/server';
 import { query } from '../../../../lib/db';
 import openai, { ASSISTANT_ID } from '../../../../lib/openai';
 
+const PREDEFINED_SETUP_QUESTIONS = [
+  "What is the primary issue or topic you are hoping to discuss or resolve today?",
+  "Briefly, what is your perspective or feeling about this issue?",
+  "What is one specific outcome you would consider a success for this session?",
+  "Is there any important background information the other person or the facilitator should know about this issue?",
+  "On a scale of 1-10, how open do you feel to exploring different solutions right now?"
+];
+
 export async function POST() {
   try {
     // Reset messages
-    await query('DELETE FROM messages');
+    await query('DELETE FROM messages WHERE room_id = \'main-room\'');
     
-    // Reset room state - importantly, set thread_id to NULL to create a fresh thread
+    // Reset room state - importantly, set thread_id to NULL and clear structured_state
     await query(`
-      INSERT INTO room_state (current_turn, assistant_active) 
-      VALUES ('M', false) 
-      ON CONFLICT (id) 
-      DO UPDATE SET current_turn = 'M', assistant_active = false, thread_id = NULL
+      UPDATE room_state 
+      SET 
+        current_turn = \'M\', 
+        assistant_active = false, 
+        thread_id = NULL, 
+        structured_state = \'{}\'::jsonb,
+        updated_at = CURRENT_TIMESTAMP
+      WHERE room_id = \'main-room\'
     `);
+    // If room_state doesn't exist for main-room, this won't do anything, which is fine for a reset.
+    // A more robust way would be INSERT ... ON CONFLICT ... DO UPDATE, already implemented in init-db.
+
+    // Clear any existing setup for the room and create a new one
+    await query('DELETE FROM conversation_setup WHERE room_id = \'main-room\'');
+    await query(`
+      INSERT INTO conversation_setup (room_id, questions, status)
+      VALUES (\'main-room\', $1, \'awaiting_M\')
+    `, [PREDEFINED_SETUP_QUESTIONS]);
     
     // Reset active users
     await query('DELETE FROM active_users');

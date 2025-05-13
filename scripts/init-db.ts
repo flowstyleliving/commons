@@ -41,11 +41,28 @@ const createTables = async () => {
         room_id VARCHAR(50) PRIMARY KEY,
         current_turn VARCHAR(1) NOT NULL,
         assistant_active BOOLEAN DEFAULT FALSE,
+        structured_state JSONB DEFAULT '{}'::jsonb,
         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
       )
     `);
     console.log('✅ Room state table created or already exists');
+    
+    // Create conversation_setup table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS conversation_setup (
+        setup_id SERIAL PRIMARY KEY,
+        room_id TEXT NOT NULL REFERENCES room_state(room_id) ON DELETE CASCADE,
+        questions TEXT[],
+        answers JSONB DEFAULT '{}'::jsonb,
+        summary TEXT DEFAULT NULL,
+        status TEXT NOT NULL DEFAULT 'pending',
+        created_at TIMESTAMPTZ DEFAULT now(),
+        updated_at TIMESTAMPTZ DEFAULT now(),
+        UNIQUE (room_id)
+      )
+    `);
+    console.log('✅ Conversation setup table created or already exists');
     
     // Check if room_state has the main room
     const roomExists = await pool.query(`
@@ -58,8 +75,8 @@ const createTables = async () => {
       const firstTurn = Math.random() < 0.5 ? 'M' : 'E';
       
       await pool.query(`
-        INSERT INTO room_state (room_id, current_turn, assistant_active)
-        VALUES ('main-room', $1, false)
+        INSERT INTO room_state (room_id, current_turn, assistant_active, structured_state)
+        VALUES ('main-room', $1, false, '{}'::jsonb)
       `, [firstTurn]);
       
       // Add welcome message from assistant
@@ -81,6 +98,7 @@ const createTables = async () => {
     console.log(`   Messages count: ${messagesCount.rows[0].count}`);
     console.log(`   Current turn: ${roomState.rows[0]?.current_turn || 'unknown'}`);
     console.log(`   Assistant active: ${roomState.rows[0]?.assistant_active ? 'yes' : 'no'}`);
+    console.log(`   Structured State: ${JSON.stringify(roomState.rows[0]?.structured_state) || 'not set'}`);
     
     console.log('\n🎉 Database initialization complete!');
     console.log('🚀 You can now run "npm run dev" to start the application');

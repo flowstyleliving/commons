@@ -20,8 +20,25 @@ export async function GET() {
         room_id VARCHAR(50) PRIMARY KEY,
         current_turn VARCHAR(1) NOT NULL,
         assistant_active BOOLEAN DEFAULT FALSE,
+        thread_id TEXT DEFAULT NULL, 
+        structured_state JSONB DEFAULT '{}'::jsonb, 
         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    
+    // Create conversation_setup table if it doesn't exist
+    await query(`
+      CREATE TABLE IF NOT EXISTS conversation_setup (
+        setup_id SERIAL PRIMARY KEY,
+        room_id TEXT NOT NULL REFERENCES room_state(room_id) ON DELETE CASCADE,
+        questions TEXT[],
+        answers JSONB DEFAULT '{}'::jsonb,
+        summary TEXT DEFAULT NULL,
+        status TEXT NOT NULL DEFAULT 'pending', 
+        created_at TIMESTAMPTZ DEFAULT now(),
+        updated_at TIMESTAMPTZ DEFAULT now(),
+        UNIQUE (room_id)
       )
     `);
     
@@ -36,15 +53,16 @@ export async function GET() {
       const firstTurn = Math.random() < 0.5 ? 'M' : 'E';
       
       await query(`
-        INSERT INTO room_state (room_id, current_turn, assistant_active)
-        VALUES ('main-room', $1, false)
+        INSERT INTO room_state (room_id, current_turn, assistant_active, structured_state)
+        VALUES ('main-room', $1, false, '{}'::jsonb)
       `, [firstTurn]);
       
       // Add welcome message from assistant
       await query(`
         INSERT INTO messages (room_id, sender, content)
-        VALUES ('main-room', 'assistant', 'Welcome to Komensa Chat! I''m your AI assistant. M and E can take turns chatting with me. Who would like to start?')
+        VALUES ('main-room', 'assistant', 'Welcome to Komensa Chat! I\'\'m your AI assistant. M and E can take turns chatting with me. Who would like to start?')
       `);
+      // TODO: Create an initial entry in conversation_setup here as well
     }
     
     // Check current state of the database

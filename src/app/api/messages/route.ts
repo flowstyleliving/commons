@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { query } from '../../../../lib/db';
-import openai, { ASSISTANT_ID } from '../../../../lib/openai';
+import { query } from '@lib/db';
+import OpenAI from 'openai';
+import openai, { ASSISTANT_ID } from '@lib/openai';
 
 // Mock message data - used as fallback when database is unavailable
 const MOCK_MESSAGES = [
@@ -31,6 +32,73 @@ export async function GET() {
   }
 }
 
+// Define the structure for the state (can be refined)
+interface StructuredState {
+  current_issues: string[];
+  points_of_contention: { [key: string]: string };
+  partner_perspectives: {
+    [key in 'M' | 'E']: {
+      feels: string[];
+      needs: string[];
+      views: { [key: string]: string }; // e.g., views_chores_as: "unfair"
+    }
+  };
+  agreements_reached: Array<{ issue: string; agreement: string }>;
+  goals_for_session: string[];
+  summary_of_session_progress: string;
+}
+
+// Default empty state
+const defaultStructuredState: StructuredState = {
+  current_issues: [],
+  points_of_contention: {},
+  partner_perspectives: {
+    M: { feels: [], needs: [], views: {} },
+    E: { feels: [], needs: [], views: {} }
+  },
+  agreements_reached: [],
+  goals_for_session: [],
+  summary_of_session_progress: ""
+};
+
+// Function to format the state for the prompt
+function formatStateForPrompt(state: StructuredState | null | undefined): string {
+  const currentState = state || defaultStructuredState;
+  // Basic formatting, can be improved (e.g., handle empty lists/objects better)
+  return `<Current State>
+Current Issues: ${currentState.current_issues.join(', ')}
+Points of Contention: ${JSON.stringify(currentState.points_of_contention)}
+M's Perspective: Feels: ${currentState.partner_perspectives.M.feels.join(', ')}; Needs: ${currentState.partner_perspectives.M.needs.join(', ')}; Views: ${JSON.stringify(currentState.partner_perspectives.M.views)}
+E's Perspective: Feels: ${currentState.partner_perspectives.E.feels.join(', ')}; Needs: ${currentState.partner_perspectives.E.needs.join(', ')}; Views: ${JSON.stringify(currentState.partner_perspectives.E.views)}
+Agreements Reached: ${JSON.stringify(currentState.agreements_reached)}
+Goals: ${currentState.goals_for_session.join(', ')}
+Summary: ${currentState.summary_of_session_progress || 'Just started.'}
+</Current State>`;
+}
+
+// Function to parse state update JSON from AI response
+function parseStateUpdate(responseText: string): Partial<StructuredState> | null {
+  const marker = 'STATE_UPDATE_JSON:';
+  const jsonStart = responseText.lastIndexOf(marker);
+  if (jsonStart === -1) {
+    return null;
+  }
+  const jsonString = responseText.substring(jsonStart + marker.length).trim();
+  try {
+    // Basic validation: Check for opening and closing braces
+    if (!jsonString.startsWith('{') || !jsonString.endsWith('}')) {
+      console.warn("Potential malformed JSON for state update:", jsonString);
+      return null;
+    }
+    const parsed = JSON.parse(jsonString);
+    // Add more validation based on StructuredState interface if needed
+    return parsed as Partial<StructuredState>;
+  } catch (error) {
+    console.error("Error parsing state update JSON:", error, "\nJSON String:", jsonString);
+    return null;
+  }
+}
+
 // Add a new message
 export async function POST(request: NextRequest) {
   try {
@@ -41,191 +109,198 @@ export async function POST(request: NextRequest) {
     }
     
     try {
-      // Check if it's the user's turn
-      const roomState = await query(`
-        SELECT current_turn, assistant_active FROM room_state 
+      // Fetch room state including the new structured_state
+      const roomStateResult = await query(`
+        SELECT current_turn, assistant_active, thread_id, structured_state 
+        FROM room_state 
         WHERE room_id = 'main-room'
       `);
       
-      if (roomState.rows.length === 0) {
+      if (roomStateResult.rows.length === 0) {
         return NextResponse.json({ error: 'Room not found' }, { status: 404 });
       }
       
-      const { current_turn, assistant_active } = roomState.rows[0];
+      const { current_turn, assistant_active, thread_id: currentThreadId, structured_state: currentStructuredState } = roomStateResult.rows[0];
       
       // Check if it's the user's turn
       if (current_turn !== sender || assistant_active) {
         return NextResponse.json({ error: 'Not your turn' }, { status: 403 });
       }
       
-      // Add the message to the database
+      // Add the user's message to the database
       const result = await query(`
         INSERT INTO messages (room_id, sender, content)
         VALUES ('main-room', $1, $2)
         RETURNING *
       `, [sender, content]);
       
-      // Set AI as active and update turn
+      // Set AI as active (will be unset after response)
       await query(`
         UPDATE room_state 
-        SET assistant_active = true 
+        SET assistant_active = true, updated_at = CURRENT_TIMESTAMP 
         WHERE room_id = 'main-room'
       `);
       
-      // Add a 1.5 second delay to make the conversation feel more natural
+      // --- State Injection & AI Call ---
+      const statePrompt = formatStateForPrompt(currentStructuredState);
+      const stateUpdateInstruction = `
+IMPORTANT: After your conversational response, you MUST output the updated structured state JSON for the conversation, enclosed within a marker. Use the exact format:
+STATE_UPDATE_JSON:
+{ "current_issues": [...], "points_of_contention": {...}, "partner_perspectives": {...}, "agreements_reached": [...], "goals_for_session": [...], "summary_of_session_progress": "..." }
+Update the JSON based ONLY on the latest user message and the provided context. Ensure the JSON is valid.`;
+      
+      let assistantResponseText = "";
+      let threadId = currentThreadId; // Use existing thread ID if available
+      let newStructuredState: Partial<StructuredState> | null = null;
+      
+      // Add a 1.5 second delay BEFORE calling the AI
       await new Promise(resolve => setTimeout(resolve, 1500));
       
-      // Get conversation history for the AI
-      const messageHistory = await query(`
-        SELECT sender, content FROM messages 
-        WHERE room_id = 'main-room' 
-        ORDER BY created_at ASC
-      `);
-      
-      let assistantMessage = "";
-      
       try {
-        // Check if there's an assistant ID configured
-        if (!ASSISTANT_ID) {
-          throw new Error("No assistant ID configured");
-        }
+        if (!ASSISTANT_ID) throw new Error("No assistant ID configured");
         
-        // Create a Thread or retrieve an existing Thread ID from the database
-        let threadId;
-        const existingThread = await query(`
-          SELECT thread_id FROM room_state 
-          WHERE room_id = 'main-room'
-        `);
-        
-        if (existingThread.rows.length > 0 && existingThread.rows[0].thread_id) {
-          threadId = existingThread.rows[0].thread_id;
-        } else {
-          // Create a new thread
+        // Get or create thread
+        if (!threadId) {
           const thread = await openai.beta.threads.create();
           threadId = thread.id;
-          
-          // Save thread ID to database
           await query(`
-            UPDATE room_state 
-            SET thread_id = $1
-            WHERE room_id = 'main-room'
+            UPDATE room_state SET thread_id = $1 WHERE room_id = 'main-room'
           `, [threadId]);
         }
         
-        // Add the new message to the thread
-        await openai.beta.threads.messages.create(
-          threadId,
-          {
-            role: "user",
-            content: `[${sender}]: ${content}`
-          }
-        );
+        // **Inject state into user message for Assistant API**
+        const messageContentWithState = `${statePrompt}\n\n[${sender}]: ${content}`;
         
-        // Run the assistant
-        const run = await openai.beta.threads.runs.create(
-          threadId,
-          {
-            assistant_id: ASSISTANT_ID,
-          }
-        );
+        await openai.beta.threads.messages.create(threadId, {
+          role: "user",
+          content: messageContentWithState
+        });
         
-        // Poll for the result
-        let runStatus = await openai.beta.threads.runs.retrieve(
-          threadId,
-          run.id
-        );
+        // Run the assistant with state update instructions
+        const run = await openai.beta.threads.runs.create(threadId, {
+          assistant_id: ASSISTANT_ID,
+          // Add instructions here if overriding Assistant's default instructions
+          // instructions: `Your original instructions... ${stateUpdateInstruction}` // Example override
+        });
         
-        // Check for run completion (with timeout)
+        // Poll for completion... (keep existing polling logic)
+        let runStatus = await openai.beta.threads.runs.retrieve(threadId, run.id);
         let attempts = 0;
-        while (runStatus.status !== "completed" && attempts < 30) {
-          // Wait for 1 second
-          await new Promise(resolve => setTimeout(resolve, 1000));
-          
-          // Check status again
-          runStatus = await openai.beta.threads.runs.retrieve(
-            threadId,
-            run.id
-          );
-          
-          attempts++;
+        while (["queued", "in_progress", "cancelling"].includes(runStatus.status) && attempts < 30) {
+           await new Promise(resolve => setTimeout(resolve, 1000));
+           runStatus = await openai.beta.threads.runs.retrieve(threadId, run.id);
+           attempts++;
         }
         
         if (runStatus.status !== "completed") {
-          throw new Error("Assistant run timed out");
+           // Handle run failure (timeout, error, etc.)
+           console.error("Assistant run failed or timed out:", runStatus);
+           // Potentially try the fallback WITHOUT state update logic? Or just error out.
+           // For now, let's proceed to the fallback if the run didn't complete successfully.
+           throw new Error(`Assistant run did not complete. Status: ${runStatus.status}`);
         }
         
-        // Get the assistant's messages
-        const messages = await openai.beta.threads.messages.list(
-          threadId
-        );
+        // Get messages AFTER successful run
+        const messages = await openai.beta.threads.messages.list(threadId, { order: 'desc', limit: 1 }); // Get only the latest message
         
-        // Find the latest assistant message
-        const latestAssistantMessage = messages.data
-          .filter(msg => msg.role === "assistant")
-          .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
-        
-        if (latestAssistantMessage && latestAssistantMessage.content[0].type === 'text') {
-          assistantMessage = latestAssistantMessage.content[0].text.value;
+        if (messages.data.length > 0 && messages.data[0].role === 'assistant' && messages.data[0].content[0].type === 'text') {
+          const fullResponse = messages.data[0].content[0].text.value;
+          
+          // Parse state update
+          newStructuredState = parseStateUpdate(fullResponse);
+          
+          // Extract the conversational part (everything before the marker)
+          const markerIndex = fullResponse.lastIndexOf('STATE_UPDATE_JSON:');
+          assistantResponseText = markerIndex !== -1 ? fullResponse.substring(0, markerIndex).trim() : fullResponse.trim();
+          
         } else {
-          throw new Error("No valid assistant message found");
+           // This case should ideally not happen if the run completed
+           console.error("No valid assistant message found after completed run.");
+           assistantResponseText = "I seem to have encountered an issue generating a response.";
+           // Potentially throw to trigger fallback?
         }
+        
       } catch (aiError) {
-        console.error('Error using OpenAI Assistant:', aiError);
+        console.error('Error using OpenAI Assistant (or run failed):', aiError);
         
-        // Fallback to regular chat completions
-        const formattedMessages = messageHistory.rows.map((msg: any) => {
-          if (msg.sender === 'assistant') {
-            return {
-              role: 'assistant' as const,
-              content: msg.content
-            };
-          } else {
-            return {
-              role: 'user' as const,
-              content: `[${msg.sender}]: ${msg.content}`
-            };
-          }
-        });
+        // --- Fallback to Chat Completions ---
+        const messageHistory = await query(`
+            SELECT sender, content FROM messages 
+            WHERE room_id = 'main-room' ORDER BY created_at ASC
+        `);
         
+        const formattedMessages = messageHistory.rows.map((msg: any) => ({
+          role: msg.sender === 'assistant' ? 'assistant' as const : 'user' as const,
+          content: msg.sender === 'assistant' ? msg.content : `[${msg.sender}]: ${msg.content}`
+        }));
+        
+        // **Inject state as system message for Chat Completions**
         const completion = await openai.chat.completions.create({
           model: "gpt-4.1-mini",
           messages: [
-            {
-              role: "system",
-              content: "You are a helpful AI assistant in a chat between two users, M and E. Be warm, loving and respectful. Keep responses concise but helpful."
-            },
+            { role: "system", content: statePrompt }, // Inject state here
+            { role: "system", content: stateUpdateInstruction }, // Also instruct fallback model
             ...formattedMessages
+            // Note: The last user message is already in formattedMessages from DB query
           ],
         });
         
-        assistantMessage = completion.choices[0].message.content || "I'm sorry, I couldn't generate a response.";
+        const fullResponse = completion.choices[0].message.content || "I'm sorry, I couldn't generate a response.";
+        
+        // Parse state update from fallback response
+        newStructuredState = parseStateUpdate(fullResponse);
+        
+        // Extract conversational part from fallback response
+        const markerIndex = fullResponse.lastIndexOf('STATE_UPDATE_JSON:');
+        assistantResponseText = markerIndex !== -1 ? fullResponse.substring(0, markerIndex).trim() : fullResponse.trim();
       }
       
-      // Save the assistant's response
+      // --- Save Assistant Response and Update State ---
+      
+      // Ensure we have some text to save
+      if (!assistantResponseText) {
+          assistantResponseText = "Sorry, I encountered an error processing that.";
+      }
+      
+      // Save the conversational part of the assistant's response
       await query(`
         INSERT INTO messages (room_id, sender, content)
         VALUES ('main-room', 'assistant', $1)
-      `, [assistantMessage]);
+      `, [assistantResponseText]);
       
-      // Update turn to the other user
+      // **Update structured state in DB if parsed successfully**
+      let finalStructuredState = currentStructuredState || defaultStructuredState; // Start with current or default
+      if (newStructuredState) {
+          // Merge the partial update into the current state
+          // This is a shallow merge; deeper merge might be needed depending on structure
+          finalStructuredState = { ...finalStructuredState, ...newStructuredState };
+          console.log("Saving updated structured state:", finalStructuredState); // Log state being saved
+      } else {
+          console.log("No valid state update parsed from AI response.");
+      }
+      
+      // Update turn and state, unset assistant_active
       const nextTurn = sender === 'M' ? 'E' : 'M';
       await query(`
         UPDATE room_state 
-        SET current_turn = $1, assistant_active = false
+        SET current_turn = $1, 
+            assistant_active = false, 
+            structured_state = $2::jsonb,
+            updated_at = CURRENT_TIMESTAMP
         WHERE room_id = 'main-room'
-      `, [nextTurn]);
+      `, [nextTurn, JSON.stringify(finalStructuredState)]); // Stringify the final state object
       
-      // Get all messages after assistant response
+      // Get all messages for the response
       const allMessages = await query(`
         SELECT * FROM messages 
-        WHERE room_id = 'main-room' 
-        ORDER BY created_at ASC
+        WHERE room_id = 'main-room' ORDER BY created_at ASC
       `);
       
       return NextResponse.json({
         messages: allMessages.rows,
         currentTurn: nextTurn
       });
+      
     } catch (dbError) {
       console.error('Database error processing message:', dbError);
       

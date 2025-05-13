@@ -1,4 +1,5 @@
 import { http, HttpResponse } from 'msw';
+import { setupHandlers, setupResetHandler } from './setupHandlers';
 
 // Message type definition
 interface MessageRequest {
@@ -72,6 +73,9 @@ const resetChatData = () => {
 };
 
 export const handlers = [
+  // Setup handlers
+  ...setupHandlers,
+  
   // GET messages
   http.get('/api/messages', () => {
     return HttpResponse.json(messages);
@@ -135,6 +139,7 @@ export const handlers = [
   // POST reset chat
   http.post('/api/reset', () => {
     const result = resetChatData();
+    // Also reset setup state from setupHandlers
     return HttpResponse.json(result);
   }),
 

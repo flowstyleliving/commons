@@ -1,0 +1,121 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { query } from '../../../../lib/db';
+import OpenAI from 'openai';
+
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
+
+// Get all messages
+export async function GET() {
+  try {
+    const result = await query(`
+      SELECT * FROM messages 
+      WHERE room_id = 'main-room' 
+      ORDER BY created_at ASC
+    `);
+    
+    return NextResponse.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching messages:', error);
+    return NextResponse.json({ error: 'Failed to fetch messages' }, { status: 500 });
+  }
+}
+
+// Add a new message
+export async function POST(request: NextRequest) {
+  try {
+    const { sender, content } = await request.json();
+    
+    if (!sender || !content) {
+      return NextResponse.json({ error: 'Sender and content are required' }, { status: 400 });
+    }
+    
+    // Check if it's the user's turn
+    const roomState = await query(`
+      SELECT current_turn, assistant_active FROM room_state 
+      WHERE room_id = 'main-room'
+    `);
+    
+    if (roomState.rows.length === 0) {
+      return NextResponse.json({ error: 'Room not found' }, { status: 404 });
+    }
+    
+    const { current_turn, assistant_active } = roomState.rows[0];
+    
+    // Check if it's the user's turn
+    if (current_turn !== sender || assistant_active) {
+      return NextResponse.json({ error: 'Not your turn' }, { status: 403 });
+    }
+    
+    // Add the message to the database
+    const result = await query(`
+      INSERT INTO messages (room_id, sender, content)
+      VALUES ('main-room', $1, $2)
+      RETURNING *
+    `, [sender, content]);
+    
+    // Set AI as active and update turn
+    await query(`
+      UPDATE room_state 
+      SET assistant_active = true 
+      WHERE room_id = 'main-room'
+    `);
+    
+    // Get conversation history for the AI
+    const messageHistory = await query(`
+      SELECT sender, content FROM messages 
+      WHERE room_id = 'main-room' 
+      ORDER BY created_at ASC
+    `);
+    
+    // Format messages for OpenAI
+    const formattedMessages = messageHistory.rows.map((msg: any) => ({
+      role: msg.sender === 'assistant' ? 'assistant' : 'user',
+      content: msg.sender !== 'assistant' ? `[${msg.sender}]: ${msg.content}` : msg.content,
+    }));
+    
+    // Call OpenAI API
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4.1-mini",
+      messages: [
+        {
+          role: "system",
+          content: "You are a helpful AI assistant in a chat between two users, M and E. Be warm, loving and respectful. Keep responses concise but helpful."
+        },
+        ...formattedMessages
+      ],
+    });
+    
+    const assistantMessage = completion.choices[0].message.content;
+    
+    // Save the assistant's response
+    await query(`
+      INSERT INTO messages (room_id, sender, content)
+      VALUES ('main-room', 'assistant', $1)
+    `, [assistantMessage]);
+    
+    // Update turn to the other user
+    const nextTurn = sender === 'M' ? 'E' : 'M';
+    await query(`
+      UPDATE room_state 
+      SET current_turn = $1, assistant_active = false
+      WHERE room_id = 'main-room'
+    `, [nextTurn]);
+    
+    // Get all messages after assistant response
+    const allMessages = await query(`
+      SELECT * FROM messages 
+      WHERE room_id = 'main-room' 
+      ORDER BY created_at ASC
+    `);
+    
+    return NextResponse.json({
+      messages: allMessages.rows,
+      currentTurn: nextTurn
+    });
+  } catch (error) {
+    console.error('Error handling message:', error);
+    return NextResponse.json({ error: 'Failed to process message' }, { status: 500 });
+  }
+} 
