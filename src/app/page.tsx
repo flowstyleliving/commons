@@ -2,19 +2,6 @@
 
 import React, { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import SetupQuestions from '../components/SetupQuestions';
-
-// Define SetupData interface (can be moved to a types file)
-interface UserAnswers {
-  [questionKey: string]: string;
-}
-
-interface SetupData {
-  status: string;
-  questions: string[];
-  userAnswers: UserAnswers | null;
-  summary?: string | null;
-}
 
 // Loading fallback component
 function HomeLoading() {
@@ -44,16 +31,10 @@ function HomePage() {
   const error = searchParams.get('error');
   const [isResetting, setIsResetting] = useState(false);
 
-  // State for setup process
-  const [setupState, setSetupState] = useState<SetupData | null>(null);
-  const [setupLoading, setSetupLoading] = useState(true);
-  const [setupError, setSetupError] = useState<string | null>(null);
-
-  // Fetch active users and setup status
+  // Fetch active users
   useEffect(() => {
     let isMounted = true; // Prevent state updates on unmounted component
     setLoading(true);
-    setSetupLoading(true);
 
     const fetchInitialData = async () => {
       try {
@@ -94,87 +75,24 @@ function HomePage() {
         
         if (isMounted) {
             setAvailableUsers(fetchedAvailableUsers);
-            setSelectedUser(initiallySelectedUser); // Set user before checking setup status
-            setLoading(false); // User selection loading complete
+            setSelectedUser(initiallySelectedUser);
+            setLoading(false);
         }
-
-        // Fetch setup status (using the determined user)
-        try {
-          // Use the most likely available user for the status check
-          const userForStatusCheck = initiallySelectedUser;
-          const setupResponse = await fetch(`/api/setup/status?user=${userForStatusCheck}`);
-          if (!setupResponse.ok) {
-            const errorData = await setupResponse.json();
-            throw new Error(errorData.error || `Failed to fetch setup status (${setupResponse.status})`);
-          }
-          const setupData = await setupResponse.json();
-          if (isMounted) {
-            setSetupState(setupData);
-            setSetupError(null);
-          }
-        } catch (setupFetchError: any) {
-          console.error('Error fetching setup status:', setupFetchError);
-          if (isMounted) {
-            setSetupError(setupFetchError.message || 'Could not load setup information.');
-            setSetupState(null); // Ensure setup state is cleared on error
-          }
-        }
-
       } catch (error) {
         console.error('General error during initial data fetch:', error);
-        // Handle general errors if necessary, maybe setDbError
-      } finally {
         if (isMounted) {
-          setLoading(false); // Combined loading state
-          setSetupLoading(false);
+          setLoading(false);
         }
       }
     };
 
     fetchInitialData();
     
-    // Optional: Add polling for setup status if needed, especially after submission
-    // const setupInterval = setInterval(fetchInitialData, 10000); // e.g., every 10 seconds
-
     return () => {
       isMounted = false;
-      // clearInterval(setupInterval);
     };
   }, []); // Run once on mount
-
-  const refreshSetupStatus = async () => {
-     setSetupLoading(true);
-     setSetupError(null);
-     try {
-       const setupResponse = await fetch(`/api/setup/status?user=${selectedUser}`);
-       if (!setupResponse.ok) {
-         const errorData = await setupResponse.json();
-         throw new Error(errorData.error || `Failed to refresh setup status (${setupResponse.status})`);
-       }
-       const setupData = await setupResponse.json();
-       setSetupState(setupData);
-     } catch (err: any) {
-       console.error('Error refreshing setup status:', err);
-       setSetupError(err.message || 'Could not refresh setup information.');
-     } finally {
-       setSetupLoading(false);
-     }
-  };
-
-  // Handle callbacks from SetupQuestions component
-  const handleSetupComplete = () => {
-    // This function is called when SetupQuestions determines the process is fully complete
-    // (e.g., after summary is shown). We update the state to show the user selection UI.
-    setSetupState(prev => ({ ...prev!, status: 'complete' })); 
-  };
-
-  const handleAnswersSubmitted = (submittedByUser: 'M' | 'E') => {
-    // When a user submits, we immediately refresh the status to see if 
-    // the other user needs to answer, if summarization starts, or if it's complete.
-    console.log(`User ${submittedByUser} submitted answers. Refreshing status...`);
-    refreshSetupStatus();
-  };
-
+  
   // Handle join button click
   const handleJoin = () => {
     router.push(`/chat?user=${selectedUser}`);
@@ -196,8 +114,6 @@ function HomePage() {
       if (response.ok) {
         // Show success message
         alert('Chat has been reset successfully!');
-        // Crucially, refresh setup status after reset
-        refreshSetupStatus(); 
       } else {
         console.error('Failed to reset chat');
       }
@@ -253,7 +169,7 @@ function HomePage() {
 
   // JSX for rendering the main content based on state
   const renderMainContent = () => {
-    if (setupLoading || loading) {
+    if (loading) {
       // Show a generic loading state initially
       return (
          <div className="p-8 rounded-xl bg-white/80 shadow-md backdrop-blur-sm">
@@ -268,34 +184,7 @@ function HomePage() {
       );
     }
 
-    if (setupError) {
-      return (
-        <div className="p-6 bg-rose-50 border border-rose-200 rounded-lg text-rose-700 max-w-md w-full">
-            <p className="font-semibold">Error loading setup:</p>
-            <p>{setupError}</p>
-            <button 
-                onClick={refreshSetupStatus} 
-                className="mt-4 px-4 py-2 bg-rose-500 text-white rounded-md hover:bg-rose-600"
-            >
-                Retry
-            </button>
-        </div>
-      );
-    }
-
-    // If setup is needed (and we have the data), show the SetupQuestions component
-    if (setupState && setupState.status !== 'complete') {
-      return (
-        <SetupQuestions 
-          initialSetupData={setupState}
-          currentUser={selectedUser} // Pass the currently selected user
-          onSetupComplete={handleSetupComplete}
-          onAnswersSubmitted={handleAnswersSubmitted}
-        />
-      );
-    }
-
-    // If setup is complete or not applicable, show the user selection UI
+    // Show the user selection UI
     return (
         <div className="bg-white/80 backdrop-blur-sm rounded-xl shadow-lg overflow-hidden border border-stone-100">
             <div className="bg-gradient-to-r from-teal-700 to-violet-700 p-6 text-white">
@@ -387,6 +276,12 @@ function HomePage() {
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                       </svg>
                       Chat history is saved for everyone to see
+                    </li>
+                    <li className="flex items-start">
+                      <svg className="h-5 w-5 text-teal-500 mr-2 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      You'll be asked setup questions if this is a new conversation
                     </li>
                   </ul>
                 </div>

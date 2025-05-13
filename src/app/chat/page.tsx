@@ -131,18 +131,30 @@ function ChatComponent() {
           console.log('Debug - Messages API Response:', messagesData);
           
           // Ensure messages is an array with proper fallbacks
+          let messagesList = [];
           if (Array.isArray(messagesData)) {
+            messagesList = messagesData;
             setMessages(messagesData);
           } else if (messagesData && messagesData.messages && Array.isArray(messagesData.messages)) {
+            messagesList = messagesData.messages;
             setMessages(messagesData.messages);
           } else {
             // Handle empty or invalid response gracefully
             console.warn('Invalid messages format:', messagesData);
             setMessages([]);
           }
+          
+          // If there are no messages, redirect to setup page
+          if (messagesList.length === 0) {
+            router.replace(`/setup?user=${selectedUser}`);
+            return;
+          }
         } catch (messageError) {
           console.error('Error fetching messages:', messageError);
           setMessages([]);
+          // Still redirect to setup on error as we couldn't load messages
+          router.replace(`/setup?user=${selectedUser}`);
+          return;
         }
         
         // Fetch turn status
