@@ -15,14 +15,14 @@ interface MessageType {
 // Loading fallback component
 function ChatLoading() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-amber-50 via-orange-50 to-amber-100">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-stone-50 via-rose-50 to-stone-100">
       <div className="p-8 rounded-xl bg-white/80 shadow-md backdrop-blur-sm">
         <div className="flex items-center justify-center">
-          <svg className="animate-spin h-8 w-8 text-amber-500 mr-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+          <svg className="animate-spin h-8 w-8 text-teal-500 mr-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
           </svg>
-          <span className="text-lg font-medium text-amber-800">Loading Chat...</span>
+          <span className="text-lg font-medium text-stone-800">Loading Chat...</span>
         </div>
       </div>
     </div>
@@ -390,14 +390,14 @@ function ChatComponent() {
   
   // JSX for database error UI
   const renderDbErrorUI = () => (
-    <div className="flex flex-col h-screen items-center justify-center bg-amber-50 p-8">
-      <div className="bg-white p-8 rounded-xl shadow-lg max-w-lg w-full border border-amber-200">
+    <div className="flex flex-col h-screen items-center justify-center bg-stone-50 p-8">
+      <div className="bg-white p-8 rounded-xl shadow-lg max-w-lg w-full border border-stone-200">
         <div className="text-rose-600 text-4xl mb-4">⚠️</div>
-        <h1 className="text-2xl font-bold text-amber-800 mb-4">Database Connection Error</h1>
-        <p className="text-amber-700 mb-6">{dbError || 'Could not connect to the database. Please check your configuration.'}</p>
-        <div className="bg-amber-50 p-4 rounded-lg border border-amber-200 mb-6">
-          <p className="text-sm text-amber-800 font-medium mb-2">Troubleshooting Steps:</p>
-          <ol className="list-decimal list-inside text-sm text-amber-700 space-y-1">
+        <h1 className="text-2xl font-bold text-stone-800 mb-4">Database Connection Error</h1>
+        <p className="text-stone-700 mb-6">{dbError || 'Could not connect to the database. Please check your configuration.'}</p>
+        <div className="bg-stone-50 p-4 rounded-lg border border-stone-200 mb-6">
+          <p className="text-sm text-stone-800 font-medium mb-2">Troubleshooting Steps:</p>
+          <ol className="list-decimal list-inside text-sm text-stone-700 space-y-1">
             <li>Ensure your DATABASE_URL environment variable is set correctly</li>
             <li>Check that your database server is running</li>
             <li>Verify your network connection to the database</li>
@@ -406,7 +406,7 @@ function ChatComponent() {
         </div>
         <button 
           onClick={() => window.location.reload()} 
-          className="w-full bg-gradient-to-r from-amber-500 to-amber-600 text-white py-3 px-4 rounded-lg hover:from-amber-600 hover:to-amber-700 transition-all shadow-sm"
+          className="w-full bg-gradient-to-r from-teal-500 to-violet-600 text-white py-3 px-4 rounded-lg hover:from-violet-600 hover:to-violet-700 transition-all shadow-sm"
         >
           Retry Connection
         </button>
@@ -422,7 +422,7 @@ function ChatComponent() {
   return (
     <div className="flex flex-col h-screen bg-transparent relative z-10">
       {/* Header */}
-      <header className="bg-gradient-to-r from-amber-500 to-amber-600 shadow-md p-4 text-white">
+      <header className="bg-gradient-to-r from-teal-700 to-violet-700 shadow-md p-4 text-white">
         <div className="max-w-4xl mx-auto flex justify-between items-center">
           <div className="flex items-center space-x-3">
             <h1 className="text-2xl font-bold">Komensa Chat</h1>
@@ -457,7 +457,7 @@ function ChatComponent() {
               <span className="text-sm mr-2">You are:</span>
               <div 
                 className={`px-3 py-1 rounded-full text-white ${
-                  user === 'M' ? 'bg-amber-600 ring-2 ring-amber-300' : 'bg-rose-500 ring-2 ring-rose-300'
+                  user === 'M' ? 'bg-teal-600 ring-2 ring-teal-300' : 'bg-violet-500 ring-2 ring-violet-300'
                 } shadow-md`}
               >
                 {user}
@@ -471,8 +471,8 @@ function ChatComponent() {
       <div className="flex-1 overflow-y-auto p-4">
         <div className="max-w-4xl mx-auto">
           {messageList.length === 0 ? (
-            <div className="text-center p-8 bg-white/70 backdrop-blur-sm rounded-xl shadow-sm border border-amber-200 my-8">
-              <p className="text-amber-800">No messages yet. Start the conversation!</p>
+            <div className="text-center p-8 bg-white/70 backdrop-blur-sm rounded-xl shadow-sm border border-stone-200 my-8">
+              <p className="text-stone-800">No messages yet. Start the conversation!</p>
             </div>
           ) : (
             messageList.map((message) => (
@@ -501,12 +501,12 @@ function ChatComponent() {
       </div>
       
       {/* Message Input */}
-      <div className="bg-white/80 backdrop-blur-sm border-t border-amber-200 p-4 shadow-inner">
+      <div className="bg-white/80 backdrop-blur-sm border-t border-stone-200 p-4 shadow-inner">
         <div className="max-w-4xl mx-auto">
           {/* Status Messages */}
           <div className="mb-2">
             {currentTurn !== user && !isAssistantTyping && (
-              <p className="text-sm text-amber-700 ml-2">
+              <p className="text-sm text-stone-700 ml-2">
                 Waiting for {currentTurn} to take their turn...
               </p>
             )}
@@ -528,7 +528,7 @@ function ChatComponent() {
                   : `Waiting for ${currentTurn} to send a message...`
               }
               disabled={currentTurn !== user || isAssistantTyping}
-              className="flex-1 rounded-l-lg border-amber-200 focus:ring-amber-500 focus:border-amber-500 shadow-sm py-3 px-4 bg-white/90 text-black min-h-[50px] max-h-36 resize-y"
+              className="flex-1 rounded-l-lg border-stone-300 focus:ring-teal-500 focus:border-teal-500 shadow-sm py-3 px-4 bg-white/90 text-black min-h-[50px] max-h-36 resize-y"
               rows={1}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
@@ -542,7 +542,7 @@ function ChatComponent() {
               disabled={currentTurn !== user || isAssistantTyping || !inputMessage.trim()}
               className={`px-6 py-3 rounded-r-lg text-white shadow-sm transition-all ${
                 currentTurn === user && !isAssistantTyping && inputMessage.trim()
-                  ? user === 'M' ? 'bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700' : 'bg-gradient-to-r from-rose-500 to-rose-600 hover:from-rose-600 hover:to-rose-700'
+                  ? user === 'M' ? 'bg-gradient-to-r from-teal-500 to-teal-600 hover:from-teal-600 hover:to-teal-700' : 'bg-gradient-to-r from-violet-500 to-violet-600 hover:from-violet-600 hover:to-violet-700'
                   : 'bg-gray-300 cursor-not-allowed'
               }`}
             >
