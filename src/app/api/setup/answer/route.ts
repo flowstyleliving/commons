@@ -57,12 +57,52 @@ Summary:`;
       [summary, setupId]
     );
 
+    // Create welcome message based on the summary
+    await createInitialChatMessages(summary);
+
     // TODO: Optionally update room_state structured_state
     return summary;
   } catch (error) {
     console.error("Error summarizing setup answers:", error);
     await query('UPDATE conversation_setup SET status = \'summarization_failed\' WHERE setup_id = $1', [setupId]);
     throw new Error('AI summarization failed.');
+  }
+}
+
+// Create initial chat messages to prevent redirect loop
+async function createInitialChatMessages(summary: string) {
+  try {
+    // Check if messages already exist
+    const existingMessages = await query('SELECT COUNT(*) as count FROM messages WHERE room_id = \'main-room\'');
+    
+    if (existingMessages.rows[0].count > 0) {
+      console.log('Messages already exist, not creating welcome message');
+      return; // Messages already exist, don't create more
+    }
+
+    // Create welcome message from assistant
+    const welcomeMessage = `Welcome to your chat! I've reviewed your setup answers and I understand you want to discuss: 
+
+${summary}
+
+M can start the conversation, and then E can reply after I respond to M. How would you like to begin?`;
+
+    await query(`
+      INSERT INTO messages (room_id, sender, content)
+      VALUES ('main-room', 'assistant', $1)
+    `, [welcomeMessage]);
+    
+    // Set M as the current turn
+    await query(`
+      UPDATE room_state 
+      SET current_turn = 'M', assistant_active = false
+      WHERE room_id = 'main-room'
+    `);
+    
+    console.log('Created initial welcome message for chat');
+  } catch (error) {
+    console.error('Error creating initial chat message:', error);
+    // Don't throw, we'll continue even if this fails
   }
 }
 
@@ -118,6 +158,9 @@ export async function POST(request: NextRequest) {
       } catch (summaryError) {
           console.error("Summarization failed trigger:", summaryError);
           nextStatus = 'summarization_failed'; // Set by summarizeAnswers on error
+          
+          // Even if summarization fails, still create a basic welcome message
+          await createInitialChatMessages("your conversation today. Let's get started!");
       }
     } else {
       nextStatus = user === 'M' ? 'awaiting_E' : 'awaiting_M';

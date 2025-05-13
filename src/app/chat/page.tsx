@@ -144,10 +144,64 @@ function ChatComponent() {
             setMessages([]);
           }
           
-          // If there are no messages, redirect to setup page
+          // If there are no messages, check if setup is complete before redirecting
           if (messagesList.length === 0) {
-            router.replace(`/setup?user=${selectedUser}`);
-            return;
+            try {
+              const setupResponse = await fetch(`/api/setup/status?user=${selectedUser}`);
+              if (setupResponse.ok) {
+                const setupData = await setupResponse.json();
+                
+                // If setup is still in progress, redirect to setup
+                if (setupData.status !== 'complete') {
+                  router.replace(`/setup?user=${selectedUser}`);
+                  return;
+                } 
+                
+                // If setup is complete but no messages, check messages one more time 
+                // or create a welcome message (with a timeout to prevent infinite loops)
+                setTimeout(async () => {
+                  try {
+                    const retryMessagesRes = await fetch('/api/messages');
+                    if (retryMessagesRes.ok) {
+                      const retryData = await retryMessagesRes.json();
+                      const hasMessages = Array.isArray(retryData) ? retryData.length > 0 : 
+                                         (retryData?.messages && Array.isArray(retryData.messages)) ? retryData.messages.length > 0 : false;
+                      
+                      // If still no messages, create an emergency welcome message
+                      if (!hasMessages) {
+                        console.log('Creating emergency welcome message after setup complete');
+                        
+                        // Create a fallback welcome message
+                        await fetch('/api/messages', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            sender: 'assistant',
+                            content: 'Welcome to the chat! You can start your conversation now.',
+                          }),
+                        });
+                        
+                        // Refresh the page to show the new message
+                        window.location.reload();
+                      }
+                    }
+                  } catch (retryError) {
+                    console.error('Error retrying to fetch messages:', retryError);
+                  }
+                }, 2000);
+                
+                // Don't redirect to setup if setup is complete
+                // Just show the empty chat UI while we wait for messages
+              } else {
+                // If we can't check setup status, default to redirecting to setup
+                router.replace(`/setup?user=${selectedUser}`);
+                return;
+              }
+            } catch (setupError) {
+              console.error('Error checking setup status:', setupError);
+              router.replace(`/setup?user=${selectedUser}`);
+              return;
+            }
           }
         } catch (messageError) {
           console.error('Error fetching messages:', messageError);
