@@ -72,6 +72,9 @@ export async function POST(request: NextRequest) {
         WHERE room_id = 'main-room'
       `);
       
+      // Add a 1.5 second delay to make the conversation feel more natural
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
       // Get conversation history for the AI
       const messageHistory = await query(`
         SELECT sender, content FROM messages 

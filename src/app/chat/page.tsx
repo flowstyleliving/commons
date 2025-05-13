@@ -362,7 +362,7 @@ function ChatComponent() {
       
       setTypingTimeout(timeout);
       
-      // Tell the API we're typing
+      // Tell the API we're typing - Moved outside timeout setup
       fetch('/api/typing', {
         method: 'POST',
         headers: {
