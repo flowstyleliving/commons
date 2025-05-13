@@ -157,41 +157,38 @@ function ChatComponent() {
                   return;
                 } 
                 
-                // If setup is complete but no messages, check messages one more time 
-                // or create a welcome message (with a timeout to prevent infinite loops)
-                setTimeout(async () => {
-                  try {
-                    const retryMessagesRes = await fetch('/api/messages');
-                    if (retryMessagesRes.ok) {
-                      const retryData = await retryMessagesRes.json();
-                      const hasMessages = Array.isArray(retryData) ? retryData.length > 0 : 
-                                         (retryData?.messages && Array.isArray(retryData.messages)) ? retryData.messages.length > 0 : false;
-                      
-                      // If still no messages, create an emergency welcome message
-                      if (!hasMessages) {
-                        console.log('Creating emergency welcome message after setup complete');
-                        
-                        // Create a fallback welcome message
-                        await fetch('/api/messages', {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({
-                            sender: 'assistant',
-                            content: 'Welcome to the chat! You can start your conversation now.',
-                          }),
-                        });
-                        
-                        // Refresh the page to show the new message
-                        window.location.reload();
-                      }
-                    }
-                  } catch (retryError) {
-                    console.error('Error retrying to fetch messages:', retryError);
-                  }
-                }, 2000);
+                // If setup is complete but no messages, try to create a welcome message
+                // but don't reload or enter a loop
+                console.log('Setup complete but no messages yet, creating welcome message');
                 
-                // Don't redirect to setup if setup is complete
-                // Just show the empty chat UI while we wait for messages
+                try {
+                  // Create a welcome message directly without reloading
+                  const welcomeResponse = await fetch('/api/messages', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      sender: 'assistant',
+                      content: setupData.summary 
+                        ? `Welcome to your chat! Based on your setup answers about: ${setupData.summary}\n\nM can start the conversation, then E can reply after I respond. How would you like to begin?` 
+                        : 'Welcome to your chat! You can start your conversation now. M goes first, then E can join after I respond to M.',
+                    }),
+                  });
+                  
+                  if (welcomeResponse.ok) {
+                    const welcomeData = await welcomeResponse.json();
+                    // Update messages state directly instead of reloading
+                    if (welcomeData.messages && Array.isArray(welcomeData.messages)) {
+                      setMessages(welcomeData.messages);
+                      setCurrentTurn('M'); // Ensure M goes first
+                      console.log('Successfully created welcome message');
+                    }
+                  }
+                } catch (welcomeError) {
+                  console.error('Error creating welcome message:', welcomeError);
+                  // Continue with empty messages rather than creating a reload loop
+                }
+                
+                // Don't redirect or reload - just show empty state if needed
               } else {
                 // If we can't check setup status, default to redirecting to setup
                 router.replace(`/setup?user=${selectedUser}`);
