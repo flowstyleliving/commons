@@ -328,7 +328,7 @@ function ChatComponent() {
   };
   
   // Handle input change with typing indicator
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const value = e.target.value;
     setInputMessage(value);
     
@@ -519,8 +519,7 @@ function ChatComponent() {
           </div>
           
           <form onSubmit={handleSendMessage} className="flex">
-            <input
-              type="text"
+            <textarea
               value={inputMessage}
               onChange={handleInputChange}
               placeholder={
@@ -529,12 +528,19 @@ function ChatComponent() {
                   : `Waiting for ${currentTurn} to send a message...`
               }
               disabled={currentTurn !== user || isAssistantTyping}
-              className="flex-1 rounded-l-full border-amber-200 focus:ring-amber-500 focus:border-amber-500 shadow-sm py-3 px-4 bg-white/90 text-black"
+              className="flex-1 rounded-l-lg border-amber-200 focus:ring-amber-500 focus:border-amber-500 shadow-sm py-3 px-4 bg-white/90 text-black min-h-[50px] max-h-36 resize-y"
+              rows={1}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSendMessage(e);
+                }
+              }}
             />
             <button
               type="submit"
               disabled={currentTurn !== user || isAssistantTyping || !inputMessage.trim()}
-              className={`px-6 py-3 rounded-r-full text-white shadow-sm transition-all ${
+              className={`px-6 py-3 rounded-r-lg text-white shadow-sm transition-all ${
                 currentTurn === user && !isAssistantTyping && inputMessage.trim()
                   ? user === 'M' ? 'bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700' : 'bg-gradient-to-r from-rose-500 to-rose-600 hover:from-rose-600 hover:to-rose-700'
                   : 'bg-gray-300 cursor-not-allowed'

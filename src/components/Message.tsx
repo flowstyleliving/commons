@@ -7,8 +7,8 @@ interface MessageProps {
   isCurrentUser?: boolean;
 }
 
-// Helper function to format AI text with proper paragraph breaks and formatting
-const formatAIText = (text: string) => {
+// Helper function to format text with proper paragraph breaks and formatting
+const formatText = (text: string) => {
   // Split text by double newlines for paragraphs
   const paragraphs = text.split(/\n\n+/);
   
@@ -82,9 +82,13 @@ const Message: React.FC<MessageProps> = ({ sender, content, timestamp, isCurrent
     ? 'justify-center' 
     : (isCurrentUser ? 'justify-end' : 'justify-start');
   
+  // Detect if the message is long and should be expanded
+  const isLongMessage = content.length > 150 || content.includes('\n');
+  const userWidthClass = isLongMessage ? 'max-w-sm md:max-w-lg' : 'max-w-xs lg:max-w-md';
+  
   return (
     <div className={`flex ${alignmentStyles} mb-4`}>
-      <div className={`flex ${isAssistant ? 'flex-col items-center' : 'max-w-xs lg:max-w-md'}`}>
+      <div className={`flex ${isAssistant ? 'flex-col items-center' : userWidthClass}`}>
         {isAssistant && (
           <div className={`flex-shrink-0 h-10 w-10 rounded-full ${avatarStyles.assistant} flex items-center justify-center text-white font-bold mb-2 ring-2 ring-white`}>
             AI
@@ -99,11 +103,9 @@ const Message: React.FC<MessageProps> = ({ sender, content, timestamp, isCurrent
         
         <div className={`${isAssistant ? 'text-center' : ''}`}>
           <div className={`rounded-2xl px-4 py-3 ${messageStyles[sender as keyof typeof messageStyles]} shadow-sm backdrop-blur-sm ${isAssistant ? 'max-w-2xl w-full text-left' : ''}`}>
-            {isAssistant ? (
-              <div className="text-sm leading-relaxed">{formatAIText(content)}</div>
-            ) : (
-              <p className="text-sm leading-relaxed">{content}</p>
-            )}
+            <div className="text-sm leading-relaxed">
+              {formatText(content)}
+            </div>
           </div>
           <span className={`text-xs text-gray-500 leading-none ${isAssistant ? 'mt-1' : 'ml-2'}`}>
             {new Date(timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
