@@ -88,7 +88,10 @@ function ChatComponent() {
       try {
         // Try to initialize database if needed
         try {
-          await fetch('/api/init-db');
+          console.log('Attempting to initialize database...');
+          const initDbResponse = await fetch('/api/init-db');
+          const initDbData = await initDbResponse.json();
+          console.log('Database initialization response:', initDbData);
         } catch (initError) {
           console.error('Error initializing database:', initError);
           // Continue anyway - this isn't critical
@@ -99,17 +102,21 @@ function ChatComponent() {
         
         // Fetch messages
         try {
+          console.log('Fetching messages from API...');
           const messagesRes = await fetch('/api/messages');
           
           if (!messagesRes.ok) {
             console.warn(`Messages API responded with status: ${messagesRes.status}`);
+            console.warn('Error response:', await messagesRes.text().catch(() => 'Could not read error response'));
             setMessages([]);
             
             // Check if this might be a database error
             if (messagesRes.status === 500) {
               try {
+                console.log('Checking database connection status...');
                 const dbCheckRes = await fetch('/api/db-check');
                 const dbCheckData = await dbCheckRes.json();
+                console.log('Database check response:', dbCheckData);
                 
                 if (dbCheckData.status === 'error') {
                   setDbError('Database connection issue. Please check your connection string.');
@@ -147,12 +154,15 @@ function ChatComponent() {
           // If there are no messages, check if setup is complete before redirecting
           if (messagesList.length === 0) {
             try {
+              console.log(`Checking setup status for user: ${selectedUser}`);
               const setupResponse = await fetch(`/api/setup/status?user=${selectedUser}`);
               if (setupResponse.ok) {
                 const setupData = await setupResponse.json();
+                console.log('Setup status response:', setupData);
                 
                 // If setup is still in progress, redirect to setup
                 if (setupData.status !== 'complete') {
+                  console.log('Setup not complete, redirecting to setup page');
                   router.replace(`/setup?user=${selectedUser}`);
                   return;
                 } 
@@ -174,14 +184,28 @@ function ChatComponent() {
                     }),
                   });
                   
+                  const welcomeResponseText = await welcomeResponse.text();
+                  console.log('Welcome message API raw response:', welcomeResponseText);
+                  
                   if (welcomeResponse.ok) {
-                    const welcomeData = await welcomeResponse.json();
-                    // Update messages state directly instead of reloading
-                    if (welcomeData.messages && Array.isArray(welcomeData.messages)) {
-                      setMessages(welcomeData.messages);
-                      setCurrentTurn('M'); // Ensure M goes first
-                      console.log('Successfully created welcome message');
+                    let welcomeData;
+                    try {
+                      welcomeData = JSON.parse(welcomeResponseText);
+                      console.log('Welcome message creation response:', welcomeData);
+                      
+                      // Update messages state directly instead of reloading
+                      if (welcomeData.messages && Array.isArray(welcomeData.messages)) {
+                        setMessages(welcomeData.messages);
+                        setCurrentTurn('M'); // Ensure M goes first
+                        console.log('Successfully created welcome message');
+                      } else {
+                        console.error('Welcome message response has invalid format:', welcomeData);
+                      }
+                    } catch (parseError) {
+                      console.error('Failed to parse welcome message response:', parseError);
                     }
+                  } else {
+                    console.error('Failed to create welcome message, status:', welcomeResponse.status);
                   }
                 } catch (welcomeError) {
                   console.error('Error creating welcome message:', welcomeError);
@@ -191,6 +215,7 @@ function ChatComponent() {
                 // Don't redirect or reload - just show empty state if needed
               } else {
                 // If we can't check setup status, default to redirecting to setup
+                console.warn('Failed to check setup status, status:', setupResponse.status);
                 router.replace(`/setup?user=${selectedUser}`);
                 return;
               }
@@ -212,6 +237,7 @@ function ChatComponent() {
         try {
           const turnRes = await fetch('/api/turn');
           const turnData = await turnRes.json();
+          console.log('Turn status response:', turnData);
           setCurrentTurn(turnData.current_turn);
           setIsAssistantTyping(turnData.assistant_active);
         } catch (turnError) {
@@ -326,6 +352,7 @@ function ChatComponent() {
     
     try {
       // Send message to API
+      console.log(`Sending message as ${user}: ${inputMessage}`);
       const response = await fetch('/api/messages', {
         method: 'POST',
         headers: {
@@ -337,7 +364,17 @@ function ChatComponent() {
         }),
       });
       
-      const data = await response.json();
+      const responseText = await response.text();
+      console.log('Message send raw response:', responseText);
+      
+      let data;
+      try {
+        data = JSON.parse(responseText);
+        console.log('Message send parsed response:', data);
+      } catch (parseError) {
+        console.error('Error parsing message send response:', parseError);
+        return;
+      }
       
       if (response.ok) {
         // Ensure messages is an array
