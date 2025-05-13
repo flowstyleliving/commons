@@ -1,27 +1,30 @@
 import { NextResponse } from 'next/server';
 import { query } from '../../../../lib/db';
+import openai from '../../../../lib/openai';
 
 export async function POST() {
   try {
     // Reset messages
     await query('DELETE FROM messages');
     
-    // Reset room state
+    // Reset room state - importantly, set thread_id to NULL to create a fresh thread
     await query(`
       INSERT INTO room_state (current_turn, assistant_active) 
       VALUES ('M', false) 
       ON CONFLICT (id) 
-      DO UPDATE SET current_turn = 'M', assistant_active = false
+      DO UPDATE SET current_turn = 'M', assistant_active = false, thread_id = NULL
     `);
     
     // Reset active users
     await query('DELETE FROM active_users');
     
-    // Add initial message from the system
+    // Add simple welcome message - the assistant will use its configured instructions
+    const welcomeMessage = 'Welcome to Komensa Chat!';
+    
     await query(`
       INSERT INTO messages (sender, content, room_id) 
-      VALUES ('assistant', 'Chat has been reset. Welcome to Komensa!', 'main-room')
-    `);
+      VALUES ('assistant', $1, 'main-room')
+    `, [welcomeMessage]);
     
     return NextResponse.json({ 
       success: true, 
