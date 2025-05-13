@@ -1,10 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '../../../../lib/db';
-import OpenAI from 'openai';
+import openai, { ASSISTANT_ID } from '../../../../lib/openai';
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+// Mock message data - used as fallback when database is unavailable
+const MOCK_MESSAGES = [
+  {
+    id: "1",
+    room_id: "main-room",
+    sender: "assistant",
+    content: "Welcome to Komensa Chat! I'm your AI assistant. M and E can take turns chatting with me. Who would like to start?",
+    created_at: new Date().toISOString()
+  }
+];
 
 // Get all messages
 export async function GET() {
@@ -23,17 +30,6 @@ export async function GET() {
     return NextResponse.json([]);
   }
 }
-
-// Mock message data - used as fallback when database is unavailable
-const MOCK_MESSAGES = [
-  {
-    id: "1",
-    room_id: "main-room",
-    sender: "assistant",
-    content: "Welcome to Komensa Chat! I'm your AI assistant. M and E can take turns chatting with me. Who would like to start?",
-    created_at: new Date().toISOString()
-  }
-];
 
 // Add a new message
 export async function POST(request: NextRequest) {
@@ -83,34 +79,124 @@ export async function POST(request: NextRequest) {
         ORDER BY created_at ASC
       `);
       
-      // Format messages for OpenAI with proper types
-      const formattedMessages: { role: 'system' | 'user' | 'assistant'; content: string }[] = messageHistory.rows.map((msg: any) => {
-        if (msg.sender === 'assistant') {
-          return {
-            role: 'assistant',
-            content: msg.content
-          };
-        } else {
-          return {
-            role: 'user',
-            content: `[${msg.sender}]: ${msg.content}`
-          };
+      let assistantMessage = "";
+      
+      try {
+        // Check if there's an assistant ID configured
+        if (!ASSISTANT_ID) {
+          throw new Error("No assistant ID configured");
         }
-      });
-      
-      // Call OpenAI API
-      const completion = await openai.chat.completions.create({
-        model: "gpt-4-turbo",
-        messages: [
+        
+        // Create a Thread or retrieve an existing Thread ID from the database
+        let threadId;
+        const existingThread = await query(`
+          SELECT thread_id FROM room_state 
+          WHERE room_id = 'main-room'
+        `);
+        
+        if (existingThread.rows.length > 0 && existingThread.rows[0].thread_id) {
+          threadId = existingThread.rows[0].thread_id;
+        } else {
+          // Create a new thread
+          const thread = await openai.beta.threads.create();
+          threadId = thread.id;
+          
+          // Save thread ID to database
+          await query(`
+            UPDATE room_state 
+            SET thread_id = $1
+            WHERE room_id = 'main-room'
+          `, [threadId]);
+        }
+        
+        // Add the new message to the thread
+        await openai.beta.threads.messages.create(
+          threadId,
           {
-            role: "system",
-            content: "You are a helpful AI assistant in a chat between two users, M and E. Be warm, loving and respectful. Keep responses concise but helpful."
-          },
-          ...formattedMessages
-        ],
-      });
-      
-      const assistantMessage = completion.choices[0].message.content;
+            role: "user",
+            content: `[${sender}]: ${content}`
+          }
+        );
+        
+        // Run the assistant
+        const run = await openai.beta.threads.runs.create(
+          threadId,
+          {
+            assistant_id: ASSISTANT_ID,
+          }
+        );
+        
+        // Poll for the result
+        let runStatus = await openai.beta.threads.runs.retrieve(
+          threadId,
+          run.id
+        );
+        
+        // Check for run completion (with timeout)
+        let attempts = 0;
+        while (runStatus.status !== "completed" && attempts < 30) {
+          // Wait for 1 second
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          
+          // Check status again
+          runStatus = await openai.beta.threads.runs.retrieve(
+            threadId,
+            run.id
+          );
+          
+          attempts++;
+        }
+        
+        if (runStatus.status !== "completed") {
+          throw new Error("Assistant run timed out");
+        }
+        
+        // Get the assistant's messages
+        const messages = await openai.beta.threads.messages.list(
+          threadId
+        );
+        
+        // Find the latest assistant message
+        const latestAssistantMessage = messages.data
+          .filter(msg => msg.role === "assistant")
+          .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
+        
+        if (latestAssistantMessage && latestAssistantMessage.content[0].type === 'text') {
+          assistantMessage = latestAssistantMessage.content[0].text.value;
+        } else {
+          throw new Error("No valid assistant message found");
+        }
+      } catch (aiError) {
+        console.error('Error using OpenAI Assistant:', aiError);
+        
+        // Fallback to regular chat completions
+        const formattedMessages = messageHistory.rows.map((msg: any) => {
+          if (msg.sender === 'assistant') {
+            return {
+              role: 'assistant' as const,
+              content: msg.content
+            };
+          } else {
+            return {
+              role: 'user' as const,
+              content: `[${msg.sender}]: ${msg.content}`
+            };
+          }
+        });
+        
+        const completion = await openai.chat.completions.create({
+          model: "gpt-4.1-mini",
+          messages: [
+            {
+              role: "system",
+              content: "You are a helpful AI assistant in a chat between two users, M and E. Be warm, loving and respectful. Keep responses concise but helpful."
+            },
+            ...formattedMessages
+          ],
+        });
+        
+        assistantMessage = completion.choices[0].message.content || "I'm sorry, I couldn't generate a response.";
+      }
       
       // Save the assistant's response
       await query(`
