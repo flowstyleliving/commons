@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { query } from '../../../../lib/db';
-import openai from '../../../../lib/openai';
+import openai, { ASSISTANT_ID } from '../../../../lib/openai';
 
 export async function POST() {
   try {
@@ -18,13 +18,80 @@ export async function POST() {
     // Reset active users
     await query('DELETE FROM active_users');
     
-    // Add simple welcome message - the assistant will use its configured instructions
-    const welcomeMessage = 'Welcome to Komensa Chat!';
-    
-    await query(`
-      INSERT INTO messages (sender, content, room_id) 
-      VALUES ('assistant', $1, 'main-room')
-    `, [welcomeMessage]);
+    // Create a new thread and get the first message from the assistant
+    try {
+      if (!ASSISTANT_ID) {
+        throw new Error("No assistant ID configured");
+      }
+      
+      // Create a new thread
+      const thread = await openai.beta.threads.create();
+      const threadId = thread.id;
+      
+      // Save thread ID to database
+      await query(`
+        UPDATE room_state 
+        SET thread_id = $1
+        WHERE room_id = 'main-room'
+      `, [threadId]);
+      
+      // Run the assistant to get an initial message
+      const run = await openai.beta.threads.runs.create(
+        threadId,
+        { assistant_id: ASSISTANT_ID }
+      );
+      
+      // Poll for the result
+      let runStatus = await openai.beta.threads.runs.retrieve(
+        threadId,
+        run.id
+      );
+      
+      // Check for run completion (with timeout)
+      let attempts = 0;
+      while (runStatus.status !== "completed" && attempts < 30) {
+        // Wait for 1 second
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        // Check status again
+        runStatus = await openai.beta.threads.runs.retrieve(
+          threadId,
+          run.id
+        );
+        
+        attempts++;
+      }
+      
+      // Get the assistant's greeting message
+      const messages = await openai.beta.threads.messages.list(threadId);
+      
+      // Find the latest assistant message
+      const assistantMessage = messages.data
+        .filter(msg => msg.role === "assistant")
+        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
+      
+      if (assistantMessage && assistantMessage.content[0].type === 'text') {
+        // Save the assistant's greeting to the database
+        await query(`
+          INSERT INTO messages (room_id, sender, content)
+          VALUES ('main-room', 'assistant', $1)
+        `, [assistantMessage.content[0].text.value]);
+      } else {
+        // Fallback in case there's no valid message
+        await query(`
+          INSERT INTO messages (room_id, sender, content)
+          VALUES ('main-room', 'assistant', 'Welcome to Komensa Chat!')
+        `);
+      }
+    } catch (aiError) {
+      console.error('Error getting initial message from OpenAI Assistant:', aiError);
+      
+      // Fallback if the assistant fails
+      await query(`
+        INSERT INTO messages (room_id, sender, content)
+        VALUES ('main-room', 'assistant', 'Welcome to Komensa Chat!')
+      `);
+    }
     
     return NextResponse.json({ 
       success: true, 
