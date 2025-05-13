@@ -95,30 +95,52 @@ export async function POST() {
         .filter(msg => msg.role === "assistant")
         .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
       
+      let welcomeMessage = "Welcome to Komensa Chat!";
+      
       if (assistantMessage && assistantMessage.content[0].type === 'text') {
-        // Save the assistant's greeting to the database
+        welcomeMessage = assistantMessage.content[0].text.value;
+      }
+      
+      // Instead of directly inserting, use our system-message API
+      // This ensures the welcome message is created properly
+      try {
+        // Use a direct server-side call instead of fetch for API routes
+        console.log('Creating welcome message via direct database insert');
+        
+        // Insert the message directly
         await query(`
           INSERT INTO messages (room_id, sender, content)
           VALUES ('main-room', 'assistant', $1)
-        `, [assistantMessage.content[0].text.value]);
-        console.log('Added assistant welcome message from OpenAI');
-      } else {
-        // Fallback in case there's no valid message
+        `, [welcomeMessage]);
+        
+        // Set turn to M for first message
         await query(`
-          INSERT INTO messages (room_id, sender, content)
-          VALUES ('main-room', 'assistant', 'Welcome to Komensa Chat!')
+          UPDATE room_state 
+          SET current_turn = 'M', assistant_active = false
+          WHERE room_id = 'main-room'
         `);
-        console.log('Added fallback welcome message');
+        
+        console.log('Added welcome message successfully');
+      } catch (dbError) {
+        console.error('Error inserting welcome message:', dbError);
+        throw dbError;
       }
     } catch (aiError) {
       console.error('Error getting initial message from OpenAI Assistant:', aiError);
       
-      // Fallback if the assistant fails
+      // Fallback direct database insert
       await query(`
         INSERT INTO messages (room_id, sender, content)
         VALUES ('main-room', 'assistant', 'Welcome to Komensa Chat!')
       `);
       console.log('Added fallback welcome message due to OpenAI error');
+      
+      // Set proper turn
+      await query(`
+        UPDATE room_state 
+        SET current_turn = 'M', assistant_active = false
+        WHERE room_id = 'main-room'
+      `);
     }
     
     return NextResponse.json({ 

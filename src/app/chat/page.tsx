@@ -184,11 +184,11 @@ function ChatComponent() {
                 
                 try {
                   // Create a welcome message directly without reloading
-                  const welcomeResponse = await fetch('/api/messages', {
+                  // Use the special system-message endpoint that bypasses turn checks
+                  const welcomeResponse = await fetch('/api/system-message', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                      sender: 'assistant',
                       content: setupData.summary 
                         ? `Welcome to your chat! Based on your setup answers about: ${setupData.summary}\n\nM can start the conversation, then E can reply after I respond. How would you like to begin?` 
                         : 'Welcome to your chat! You can start your conversation now. M goes first, then E can join after I respond to M.',
