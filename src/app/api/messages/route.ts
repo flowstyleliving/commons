@@ -64,14 +64,32 @@ const defaultStructuredState: StructuredState = {
 // Function to format the state for the prompt
 function formatStateForPrompt(state: StructuredState | null | undefined): string {
   const currentState = state || defaultStructuredState;
-  // Basic formatting, can be improved (e.g., handle empty lists/objects better)
+  
+  // Safely join arrays with fallbacks for undefined values
+  const safeJoin = (arr: any[] | undefined) => Array.isArray(arr) ? arr.join(', ') : '';
+  
+  // Make sure all properties exist with safe defaults
+  const issues = Array.isArray(currentState.current_issues) ? currentState.current_issues : [];
+  const mFeels = Array.isArray(currentState.partner_perspectives?.M?.feels) ? currentState.partner_perspectives.M.feels : [];
+  const mNeeds = Array.isArray(currentState.partner_perspectives?.M?.needs) ? currentState.partner_perspectives.M.needs : [];
+  const eFeels = Array.isArray(currentState.partner_perspectives?.E?.feels) ? currentState.partner_perspectives.E.feels : [];
+  const eNeeds = Array.isArray(currentState.partner_perspectives?.E?.needs) ? currentState.partner_perspectives.E.needs : [];
+  const goals = Array.isArray(currentState.goals_for_session) ? currentState.goals_for_session : [];
+  
+  // Safe stringify for objects
+  const safeStringify = (obj: any) => obj ? JSON.stringify(obj) : '{}';
+  
+  // Ensure perspectives exist
+  const mViews = currentState.partner_perspectives?.M?.views || {};
+  const eViews = currentState.partner_perspectives?.E?.views || {};
+  
   return `<Current State>
-Current Issues: ${currentState.current_issues.join(', ')}
-Points of Contention: ${JSON.stringify(currentState.points_of_contention)}
-M's Perspective: Feels: ${currentState.partner_perspectives.M.feels.join(', ')}; Needs: ${currentState.partner_perspectives.M.needs.join(', ')}; Views: ${JSON.stringify(currentState.partner_perspectives.M.views)}
-E's Perspective: Feels: ${currentState.partner_perspectives.E.feels.join(', ')}; Needs: ${currentState.partner_perspectives.E.needs.join(', ')}; Views: ${JSON.stringify(currentState.partner_perspectives.E.views)}
-Agreements Reached: ${JSON.stringify(currentState.agreements_reached)}
-Goals: ${currentState.goals_for_session.join(', ')}
+Current Issues: ${safeJoin(issues)}
+Points of Contention: ${safeStringify(currentState.points_of_contention)}
+M's Perspective: Feels: ${safeJoin(mFeels)}; Needs: ${safeJoin(mNeeds)}; Views: ${safeStringify(mViews)}
+E's Perspective: Feels: ${safeJoin(eFeels)}; Needs: ${safeJoin(eNeeds)}; Views: ${safeStringify(eViews)}
+Agreements Reached: ${safeStringify(currentState.agreements_reached)}
+Goals: ${safeJoin(goals)}
 Summary: ${currentState.summary_of_session_progress || 'Just started.'}
 </Current State>`;
 }
