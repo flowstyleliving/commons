@@ -7,6 +7,58 @@ interface MessageProps {
   isCurrentUser?: boolean;
 }
 
+// Helper function to format AI text with proper paragraph breaks and formatting
+const formatAIText = (text: string) => {
+  // Split text by double newlines for paragraphs
+  const paragraphs = text.split(/\n\n+/);
+  
+  return (
+    <>
+      {paragraphs.map((paragraph, index) => {
+        // Handle lists (lines starting with - or * or numbers)
+        if (paragraph.trim().match(/^[-*]\s+/) || paragraph.trim().match(/^\d+\.\s+/)) {
+          // This is a list-like paragraph
+          const listItems = paragraph.split('\n').filter(line => line.trim());
+          return (
+            <ul key={index} className="list-disc pl-5 mb-3 space-y-1">
+              {listItems.map((item, itemIndex) => (
+                <li key={itemIndex}>{item.replace(/^[-*]\s+/, '')}</li>
+              ))}
+            </ul>
+          );
+        }
+        
+        // Handle code blocks (indented text or text between backticks)
+        if (paragraph.trim().startsWith('```') && paragraph.trim().endsWith('```')) {
+          const code = paragraph.trim().replace(/^```[\w]*\n/, '').replace(/```$/, '');
+          return (
+            <pre key={index} className="bg-gray-800 text-gray-100 p-3 rounded-md overflow-x-auto mb-3 text-xs">
+              <code>{code}</code>
+            </pre>
+          );
+        }
+        
+        // Process inline code (text between single backticks)
+        const processedText = paragraph.split('`').map((segment, segIndex) => {
+          // Even indices are normal text, odd indices are code
+          if (segIndex % 2 === 0) {
+            return segment;
+          } else {
+            return <code key={segIndex} className="bg-gray-100 text-rose-600 px-1 py-0.5 rounded font-mono text-xs">{segment}</code>;
+          }
+        });
+        
+        // Standard paragraph
+        return (
+          <p key={index} className="mb-3 last:mb-0">
+            {processedText}
+          </p>
+        );
+      })}
+    </>
+  );
+};
+
 const Message: React.FC<MessageProps> = ({ sender, content, timestamp, isCurrentUser = false }) => {
   // Determine message styling based on sender
   const isAssistant = sender === 'assistant';
@@ -46,8 +98,12 @@ const Message: React.FC<MessageProps> = ({ sender, content, timestamp, isCurrent
         )}
         
         <div className={`${isAssistant ? 'text-center' : ''}`}>
-          <div className={`rounded-2xl px-4 py-3 ${messageStyles[sender as keyof typeof messageStyles]} shadow-sm backdrop-blur-sm ${isAssistant ? 'max-w-md' : ''}`}>
-            <p className="text-sm leading-relaxed">{content}</p>
+          <div className={`rounded-2xl px-4 py-3 ${messageStyles[sender as keyof typeof messageStyles]} shadow-sm backdrop-blur-sm ${isAssistant ? 'max-w-2xl w-full text-left' : ''}`}>
+            {isAssistant ? (
+              <div className="text-sm leading-relaxed">{formatAIText(content)}</div>
+            ) : (
+              <p className="text-sm leading-relaxed">{content}</p>
+            )}
           </div>
           <span className={`text-xs text-gray-500 leading-none ${isAssistant ? 'mt-1' : 'ml-2'}`}>
             {new Date(timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
