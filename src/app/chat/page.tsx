@@ -469,7 +469,7 @@ function ChatComponent() {
       
       {/* Chat Container */}
       <div className="flex-1 overflow-y-auto p-4">
-        <div className="max-w-4xl mx-auto">
+        <div className="max-w-4xl mx-auto pb-4">
           {messageList.length === 0 ? (
             <div className="text-center p-8 bg-white/70 backdrop-blur-sm rounded-xl shadow-sm border border-stone-200 my-8">
               <p className="text-stone-800">No messages yet. Start the conversation!</p>
@@ -486,14 +486,17 @@ function ChatComponent() {
             ))
           )}
           
-          {/* AI typing indicator */}
-          {isAssistantTyping && <TypingIndicator isTyping={true} sender="AI" />}
-          
-          {/* User typing indicator - show if current user is typing */}
-          {isUserTyping && <TypingIndicator isTyping={true} sender={user} isCurrentUser={true} />}
-          
-          {/* Other user typing indicator */}
-          {otherUserTyping && <TypingIndicator isTyping={true} sender={otherUser} />}
+          {/* Typing Indicators Container */}
+          <div className="h-10 flex flex-col justify-end">
+            {/* AI typing indicator */}
+            {isAssistantTyping && <TypingIndicator isTyping={true} sender="AI" />}
+            
+            {/* User typing indicator - show if current user is typing */}
+            {isUserTyping && <TypingIndicator isTyping={true} sender={user} isCurrentUser={true} />}
+            
+            {/* Other user typing indicator */}
+            {otherUserTyping && <TypingIndicator isTyping={true} sender={otherUser} />}
+          </div>
           
           {/* For auto-scrolling */}
           <div ref={messagesEndRef} />
