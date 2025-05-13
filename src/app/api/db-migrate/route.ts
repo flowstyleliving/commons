@@ -20,6 +20,21 @@ export async function GET() {
       }
     }
     
+    // Check if structured_state column exists in room_state table
+    let needsStructuredStateColumn = false;
+    try {
+      await query(`SELECT structured_state FROM room_state LIMIT 1`);
+      console.log('structured_state column already exists');
+    } catch (error: any) {
+      if (error.message?.includes('column "structured_state" does not exist')) {
+        console.log('structured_state column does not exist, will add it');
+        needsStructuredStateColumn = true;
+      } else {
+        console.error('Unexpected error checking for structured_state column:', error);
+        throw error; // Re-throw if it's not the expected error
+      }
+    }
+    
     // Add thread_id column if needed
     if (needsThreadIdColumn) {
       console.log('Adding thread_id column to room_state table...');
@@ -28,6 +43,16 @@ export async function GET() {
         ADD COLUMN thread_id TEXT DEFAULT NULL
       `);
       console.log('Successfully added thread_id column');
+    }
+    
+    // Add structured_state column if needed
+    if (needsStructuredStateColumn) {
+      console.log('Adding structured_state column to room_state table...');
+      await query(`
+        ALTER TABLE room_state
+        ADD COLUMN structured_state JSONB DEFAULT '{}'::jsonb
+      `);
+      console.log('Successfully added structured_state column');
     }
     
     // Re-run full init-db to ensure all tables are up to date
@@ -43,7 +68,7 @@ export async function GET() {
         )
       `);
       
-      // Create room_state table if it doesn't exist (with thread_id)
+      // Create room_state table if it doesn't exist (with thread_id and structured_state)
       await query(`
         CREATE TABLE IF NOT EXISTS room_state (
           room_id VARCHAR(50) PRIMARY KEY,
@@ -80,7 +105,11 @@ export async function GET() {
     return NextResponse.json({
       status: 'success',
       message: 'Database migration completed successfully',
-      changes: needsThreadIdColumn ? ['Added thread_id column to room_state'] : ['No changes needed']
+      changes: [
+        ...(needsThreadIdColumn ? ['Added thread_id column to room_state'] : []),
+        ...(needsStructuredStateColumn ? ['Added structured_state column to room_state'] : []),
+        (!needsThreadIdColumn && !needsStructuredStateColumn) ? 'No changes needed' : null
+      ].filter(Boolean)
     });
     
   } catch (error: any) {
