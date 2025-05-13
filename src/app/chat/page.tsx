@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef, Suspense } from 'react';
 import Message from '../../components/Message';
 import TypingIndicator from '../../components/TypingIndicator';
 import { useSearchParams, useRouter } from 'next/navigation';
+import Link from 'next/link';
 
 interface MessageType {
   id: string;
@@ -536,7 +537,7 @@ function ChatComponent() {
       <header className="bg-gradient-to-r from-teal-700 to-violet-700 shadow-md p-4 text-white">
         <div className="max-w-4xl mx-auto flex justify-between items-center">
           <div className="flex items-center space-x-3">
-            <h1 className="text-2xl font-bold">Komensa Chat</h1>
+            <Link href="/" className="text-2xl font-bold hover:text-white/90 transition-colors">Komensa Chat</Link>
             <button 
               onClick={handleResetChat}
               disabled={isResetting}
