@@ -469,7 +469,7 @@ function ChatComponent() {
       
       {/* Chat Container */}
       <div className="flex-1 overflow-y-auto p-4">
-        <div className="max-w-4xl mx-auto pb-4">
+        <div className="max-w-4xl mx-auto">
           {messageList.length === 0 ? (
             <div className="text-center p-8 bg-white/70 backdrop-blur-sm rounded-xl shadow-sm border border-stone-200 my-8">
               <p className="text-stone-800">No messages yet. Start the conversation!</p>
@@ -487,7 +487,7 @@ function ChatComponent() {
           )}
           
           {/* Typing Indicators Container */}
-          <div className="h-10 flex flex-col justify-end">
+          <div className="h-16 flex flex-col justify-end mt-2">
             {/* AI typing indicator */}
             {isAssistantTyping && <TypingIndicator isTyping={true} sender="AI" />}
             
