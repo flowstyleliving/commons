@@ -12,8 +12,11 @@ const PREDEFINED_SETUP_QUESTIONS = [
 
 export async function POST() {
   try {
+    console.log('Starting chat reset');
+    
     // Reset messages
     await query('DELETE FROM messages WHERE room_id = \'main-room\'');
+    console.log('Messages deleted');
     
     // Reset room state - importantly, set thread_id to NULL and clear structured_state
     await query(`
@@ -26,18 +29,18 @@ export async function POST() {
         updated_at = CURRENT_TIMESTAMP
       WHERE room_id = \'main-room\'
     `);
-    // If room_state doesn't exist for main-room, this won't do anything, which is fine for a reset.
-    // A more robust way would be INSERT ... ON CONFLICT ... DO UPDATE, already implemented in init-db.
-
+    console.log('Room state reset');
+    
     // Clear any existing setup for the room and create a new one
     await query('DELETE FROM conversation_setup WHERE room_id = \'main-room\'');
     await query(`
       INSERT INTO conversation_setup (room_id, questions, status)
       VALUES (\'main-room\', $1, \'awaiting_M\')
     `, [PREDEFINED_SETUP_QUESTIONS]);
+    console.log('Setup questions reset');
     
-    // Reset active users
-    await query('DELETE FROM active_users');
+    // Note: No need to reset active users as they are determined from messages
+    // which we've already deleted
     
     // Create a new thread and get the first message from the assistant
     try {
@@ -48,6 +51,7 @@ export async function POST() {
       // Create a new thread
       const thread = await openai.beta.threads.create();
       const threadId = thread.id;
+      console.log('Created new OpenAI thread:', threadId);
       
       // Save thread ID to database
       await query(`
@@ -97,12 +101,14 @@ export async function POST() {
           INSERT INTO messages (room_id, sender, content)
           VALUES ('main-room', 'assistant', $1)
         `, [assistantMessage.content[0].text.value]);
+        console.log('Added assistant welcome message from OpenAI');
       } else {
         // Fallback in case there's no valid message
         await query(`
           INSERT INTO messages (room_id, sender, content)
           VALUES ('main-room', 'assistant', 'Welcome to Komensa Chat!')
         `);
+        console.log('Added fallback welcome message');
       }
     } catch (aiError) {
       console.error('Error getting initial message from OpenAI Assistant:', aiError);
@@ -112,6 +118,7 @@ export async function POST() {
         INSERT INTO messages (room_id, sender, content)
         VALUES ('main-room', 'assistant', 'Welcome to Komensa Chat!')
       `);
+      console.log('Added fallback welcome message due to OpenAI error');
     }
     
     return NextResponse.json({ 
