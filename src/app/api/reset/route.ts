@@ -45,7 +45,7 @@ export async function POST() {
     // Create a new thread and get the first message from the assistant
     try {
       if (!ASSISTANT_ID) {
-        throw new Error("No assistant ID configured");
+        throw new Error("No assistant ID configured!");
       }
       
       // Create a new thread
